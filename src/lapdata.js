@@ -16,6 +16,41 @@ export function parseDate(str) {
   return Date.parse(m[1] + fraction + (m[3] || 'Z'));
 }
 
+// Gaussian blur of a 1D array; sigma is in samples. Edges are clamped.
+function gaussian(values, sigma) {
+  const radius = Math.ceil(sigma * 3);
+  const weights = Array.from({ length: radius * 2 + 1 }, (_, k) => Math.exp(-((k - radius) ** 2) / (2 * sigma * sigma)));
+  const out = new Float64Array(values.length);
+  for (let i = 0; i < values.length; i++) {
+    let sum = 0;
+    let wsum = 0;
+    for (let k = -radius; k <= radius; k++) {
+      const w = weights[k + radius];
+      sum += values[clamp(i + k, 0, values.length - 1)] * w;
+      wsum += w;
+    }
+    out[i] = sum / wsum;
+  }
+  return out;
+}
+
+// Speed (km/h) at time t, linearly interpolated from the car data samples.
+function rawSpeed(car, t) {
+  if (t <= car[0].t) return car[0].speed;
+  const last = car[car.length - 1];
+  if (t >= last.t) return last.speed;
+  let lo = 0;
+  let hi = car.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (car[mid].t < t) lo = mid;
+    else hi = mid;
+  }
+  const a = car[lo];
+  const b = car[hi];
+  return a.speed + ((b.speed - a.speed) * (t - a.t)) / (b.t - a.t || 1);
+}
+
 // Fastest lap per driver, then the top `count` of those.
 export function pickFastestLaps(laps, count = 3) {
   const best = new Map();
@@ -85,8 +120,7 @@ export function buildDriverLap({ lap, driver, locations, carData, index }) {
     ys[i] = sy / sw;
     if (i > 0) dist[i] = dist[i - 1] + Math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]);
   }
-  const total = dist[n - 1] || 1;
-  const progress = Array.from(dist, (d) => d / total);
+  const roughTotal = dist[n - 1] || 1;
 
   const car = carData
     .map((c) => ({
@@ -99,20 +133,74 @@ export function buildDriverLap({ lap, driver, locations, carData, index }) {
     }))
     .filter((c) => Number.isFinite(c.t) && c.t >= -500 && c.t <= duration + 500)
     .sort((a, b) => a.t - b.t);
+  const inLap = car.filter((c) => c.t >= 0 && c.t <= duration);
+
+  // OpenF1 doesn't document its x/y units, so work out metres per unit from
+  // the lap itself: average speed x lap time = real lap distance.
+  const avgSpeed = inLap.length ? inLap.reduce((s, c) => s + c.speed, 0) / inLap.length : 0;
+  const realMetres = (avgSpeed / 3.6) * (duration / 1000);
+  const metresPerUnit = realMetres > 0 ? realMetres / roughTotal : 0.1;
+
+  // ---- The line: where the car goes ----
+  // Resample the path every metre, then smooth it by distance. Smoothing by
+  // distance (not time) gives clean, consistent racing lines through corners.
+  const stepU = 1 / metresPerUnit;
+  const m = Math.max(2, Math.floor(roughTotal / stepU) + 1);
+  const rx = new Float64Array(m);
+  const ry = new Float64Array(m);
+  for (let i = 0, jj = 0; i < m; i++) {
+    const d = Math.min(i * stepU, roughTotal);
+    while (jj < n - 2 && dist[jj + 1] < d) jj++;
+    const k = (d - dist[jj]) / (dist[jj + 1] - dist[jj] || 1);
+    rx[i] = xs[jj] + (xs[jj + 1] - xs[jj]) * k;
+    ry[i] = ys[jj] + (ys[jj + 1] - ys[jj]) * k;
+  }
+  const px = gaussian(rx, 4);
+  const py = gaussian(ry, 4);
+  const pathCum = new Float64Array(m);
+  for (let i = 1; i < m; i++) pathCum[i] = pathCum[i - 1] + Math.hypot(px[i] - px[i - 1], py[i] - py[i - 1]);
+  const pathLen = pathCum[m - 1] || 1;
+
+  // ---- The timing: when the car gets there ----
+  // The position timestamps are uneven, which made cars surge and stall.
+  // Instead, integrate the speed trace (smooth and accurate) to get distance
+  // travelled over time, then place the car that far along the line.
+  const gridT = (k) => Math.min(k * STEP_MS, duration);
+  let progress;
+  if (inLap.length >= 10) {
+    const v = new Float64Array(n);
+    for (let k = 0; k < n; k++) v[k] = rawSpeed(car, gridT(k)) / 3.6;
+    const vs = gaussian(v, 3);
+    const travelled = new Float64Array(n);
+    for (let k = 1; k < n; k++) travelled[k] = travelled[k - 1] + ((vs[k] + vs[k - 1]) / 2) * ((gridT(k) - gridT(k - 1)) / 1000);
+    const D = travelled[n - 1] || 1;
+    progress = Array.from(travelled, (d) => d / D);
+  } else {
+    progress = Array.from(dist, (d) => d / roughTotal);
+  }
 
   const gridIndex = (t) => clamp(t, 0, duration) / STEP_MS;
-
-  function posAt(t) {
-    const f = gridIndex(t);
-    const i = Math.min(Math.floor(f), n - 2);
-    const k = f - i;
-    return { x: xs[i] + (xs[i + 1] - xs[i]) * k, y: ys[i] + (ys[i + 1] - ys[i]) * k };
-  }
 
   function progressAt(t) {
     const f = gridIndex(t);
     const i = Math.min(Math.floor(f), n - 2);
     return progress[i] + (progress[i + 1] - progress[i]) * (f - i);
+  }
+
+  function pointAtDistance(sUnits) {
+    let lo = 0;
+    let hi = m - 1;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (pathCum[mid] < sUnits) lo = mid;
+      else hi = mid;
+    }
+    const k = (sUnits - pathCum[lo]) / (pathCum[hi] - pathCum[lo] || 1);
+    return { x: px[lo] + (px[hi] - px[lo]) * k, y: py[lo] + (py[hi] - py[lo]) * k };
+  }
+
+  function posAt(t) {
+    return pointAtDistance(progressAt(t) * pathLen);
   }
 
   function timeAtProgress(p) {
@@ -162,16 +250,10 @@ export function buildDriverLap({ lap, driver, locations, carData, index }) {
     return pts;
   }
 
-  const inLap = car.filter((c) => c.t >= 0 && c.t <= duration);
   const share = (fn) => (inLap.length ? (inLap.filter(fn).length / inLap.length) * 100 : 0);
   let gearChanges = 0;
   for (let i = 1; i < inLap.length; i++) if (inLap[i].gear !== inLap[i - 1].gear) gearChanges++;
 
-  // OpenF1 doesn't document its x/y units, so work out metres per unit from
-  // the lap itself: average speed x lap time = real lap distance.
-  const avgSpeed = inLap.length ? inLap.reduce((s, c) => s + c.speed, 0) / inLap.length : 0;
-  const realMetres = (avgSpeed / 3.6) * (duration / 1000);
-  const metresPerUnit = realMetres > 0 ? realMetres / total : 0.1;
 
   return {
     index,
@@ -195,7 +277,7 @@ export function buildDriverLap({ lap, driver, locations, carData, index }) {
       braking: share((c) => c.brake),
       gearChanges,
     },
-    outline: Array.from({ length: n }, (_, i) => ({ x: xs[i], y: ys[i] })),
+    outline: Array.from({ length: Math.ceil(m / 2) }, (_, i) => ({ x: px[i * 2], y: py[i * 2] })),
     posAt,
     progressAt,
     timeAtProgress,

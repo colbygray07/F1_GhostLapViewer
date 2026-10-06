@@ -5,6 +5,7 @@ import { parseDate, pickFastestLaps, buildDriverLap, markSharedColours, buildDel
 import { TrackView } from './trackView.js';
 import { LineChart, valueAt } from './chart.js';
 import { formatLapTime, formatGap, formatSector } from './format.js';
+import { RaceAudio } from './engineAudio.js';
 
 const $ = (sel) => document.querySelector(sel);
 const els = {
@@ -24,6 +25,7 @@ const els = {
   stage: document.querySelector('.stage'),
   viewButtons: [...document.querySelectorAll('[data-view-mode]')],
   fullscreen: $('#fullscreen-btn'),
+  sound: $('#sound-btn'),
   speedReadout: $('#speed-readout'),
   deltaReadout: $('#delta-readout'),
   sectorTable: $('#sector-table'),
@@ -47,6 +49,8 @@ const state = {
 // The 3D onboard view is loaded the first time someone opens it, so the
 // map view doesn't have to download three.js.
 let onboard = null;
+
+const audio = new RaceAudio();
 
 const trackView = new TrackView($('#track-canvas'));
 const speedChart = new LineChart($('#speed-chart'), {
@@ -313,6 +317,37 @@ async function setView(view) {
 
 els.viewButtons.forEach((b) => b.addEventListener('click', () => setView(b.dataset.viewMode)));
 
+// ---------- Sound ----------
+
+function setSound(on) {
+  audio.setEnabled(on);
+  els.sound.setAttribute('aria-pressed', String(on));
+  els.sound.setAttribute('aria-label', on ? 'Mute sound' : 'Turn sound on');
+}
+els.sound.addEventListener('click', () => setSound(!audio.enabled));
+
+// Browsers block sound until the first click or key press, so start it then.
+const unlockAudio = () => audio.unlock();
+document.addEventListener('pointerdown', unlockAudio, { once: true });
+document.addEventListener('keydown', unlockAudio, { once: true });
+
+// Engine follows the car you're riding with; the nearest ghost is heard too.
+function updateAudio() {
+  if (!state.drivers.length) return;
+  const own = state.drivers[onboard?.viewIndex ?? 0];
+  const t = state.t;
+  const ownDone = t >= own.duration;
+  const ownProgress = own.progressAt(t);
+  const lapMetres = ((own.stats.avgSpeed ?? 200) / 3.6) * (own.duration / 1000);
+  let ghost = null;
+  for (const d of state.drivers) {
+    if (d === own || t >= d.duration) continue;
+    const gapMetres = (d.progressAt(t) - ownProgress) * lapMetres;
+    if (!ghost || Math.abs(gapMetres) < Math.abs(ghost.gapMetres)) ghost = { ...d.carAt(t), gapMetres };
+  }
+  audio.update({ playing: state.playing && !ownDone, own: ownDone ? null : own.carAt(t), ghost });
+}
+
 function toggleFullscreen() {
   if (document.fullscreenElement) document.exitFullscreen();
   else els.stage.requestFullscreen?.();
@@ -369,8 +404,11 @@ document.addEventListener('keydown', (e) => {
     setView(state.view === 'map' ? 'onboard' : 'map');
   } else if (e.key === 'f' || e.key === 'F') {
     toggleFullscreen();
+  } else if (e.key === 'm' || e.key === 'M') {
+    setSound(!audio.enabled);
   } else if (state.view === 'onboard' && onboard) {
     if (e.key === 'c' || e.key === 'C') onboard.setCamera(onboard.cameraIndex + 1);
+    else if (e.key === 'l' || e.key === 'L') onboard.setRacingLine(!onboard.showLine);
     else if (['1', '2', '3'].includes(e.key)) onboard.setDriver(Number(e.key) - 1);
   }
 });
@@ -442,6 +480,7 @@ function frame(now) {
     render();
     state.dirty = false;
   }
+  updateAudio();
   requestAnimationFrame(frame);
 }
 

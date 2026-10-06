@@ -256,6 +256,15 @@ main {
   background: var(--line);
 }
 
+.btn-sound .icon-sound-off,
+.btn-sound[aria-pressed='false'] .icon-sound-on {
+  display: none;
+}
+
+.btn-sound[aria-pressed='false'] .icon-sound-off {
+  display: block;
+}
+
 .btn-text {
   padding: 0.5rem 1rem;
   border: 1px solid var(--line);

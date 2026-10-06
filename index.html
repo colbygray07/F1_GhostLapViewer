@@ -65,6 +65,10 @@
                 <button type="button" data-view-mode="map" aria-pressed="true">Map</button>
                 <button type="button" data-view-mode="onboard">Onboard</button>
               </div>
+              <button id="sound-btn" class="btn btn-icon btn-sound" type="button" aria-label="Mute sound" aria-pressed="true">
+                <svg class="icon-sound-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4zM16 8.5a5 5 0 0 1 0 7l-1.4-1.4a3 3 0 0 0 0-4.2zM18.8 5.7a9 9 0 0 1 0 12.6l-1.4-1.4a7 7 0 0 0 0-9.8z" /></svg>
+                <svg class="icon-sound-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4zM16.3 9.7l1.4-1.4 2.3 2.3 2.3-2.3 1.4 1.4-2.3 2.3 2.3 2.3-1.4 1.4-2.3-2.3-2.3 2.3-1.4-1.4 2.3-2.3z" /></svg>
+              </button>
               <button id="fullscreen-btn" class="btn btn-icon" type="button" aria-label="Full screen">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v2H6v4H4zm10 0h6v6h-2V6h-4zM4 14h2v4h4v2H4zm14 0h2v6h-6v-2h4z" /></svg>
               </button>
@@ -74,7 +78,7 @@
           <aside class="tower" aria-label="Live timing">
             <h2 class="tower-title">Live timing</h2>
             <ol id="tower-list" class="tower-list"></ol>
-            <p class="hint">Space plays or pauses, arrow keys skip a second. V switches view, F goes full screen. In the onboard view, C changes camera and 1–3 picks a driver.</p>
+            <p class="hint">Space plays or pauses, arrow keys skip a second. V switches view, F goes full screen. M mutes sound. In the onboard view, C changes camera, 1–3 picks a driver and L toggles the racing line.</p>
           </aside>
         </div>
       </section>

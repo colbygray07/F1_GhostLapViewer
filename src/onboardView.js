@@ -903,6 +903,54 @@ function setGhost(car, ghost) {
   car.steering.visible = !ghost;
 }
 
+// ---------- Racing line ----------
+
+// A ribbon along the driver's actual line, coloured by what they're doing:
+// green on the throttle, yellow lifting or coasting, red on the brakes.
+function buildRacingLine(driver, toWorld) {
+  const green = new THREE.Color('#25e06a');
+  const yellow = new THREE.Color('#ffc21a');
+  const red = new THREE.Color('#ff2b2b');
+  const pts = [];
+  for (let t = 0; t <= driver.duration; t += 60) {
+    const p = toWorld(driver.posAt(t));
+    const c = driver.carAt(t);
+    pts.push({ ...p, colour: c.brake ? red : c.throttle >= 85 ? green : yellow });
+  }
+  const pos = [];
+  const col = [];
+  const idx = [];
+  const half = 0.3;
+  pts.forEach((p, i) => {
+    const a = pts[Math.max(0, i - 1)];
+    const b = pts[Math.min(pts.length - 1, i + 1)];
+    const len = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+    const nx = -(b.z - a.z) / len;
+    const nz = (b.x - a.x) / len;
+    pos.push(p.x - nx * half, 0.065, p.z - nz * half, p.x + nx * half, 0.065, p.z + nz * half);
+    col.push(p.colour.r, p.colour.g, p.colour.b, p.colour.r, p.colour.g, p.colour.b);
+    if (i < pts.length - 1) {
+      const v = i * 2;
+      idx.push(v, v + 2, v + 1, v + 1, v + 2, v + 3);
+    }
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx);
+  const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.82,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+  }));
+  mesh.renderOrder = 2;
+  return mesh;
+}
+
 // ---------- The view ----------
 
 export class OnboardView {
@@ -963,6 +1011,8 @@ export class OnboardView {
     this.lastT = null;
     this.lastWall = null;
     this.speedFov = 0;
+    this.showLine = true;
+    this.lines = [];
 
     this.buildHud();
     new ResizeObserver(() => this.resize()).observe(container);
@@ -1008,6 +1058,9 @@ export class OnboardView {
         <div class="hud-group" role="group" aria-label="Camera">
           ${CAMERAS.map((c, i) => `<button type="button" data-cam="${i}" aria-pressed="${i === 0}">${c.label}</button>`).join('')}
         </div>
+        <div class="hud-group">
+          <button type="button" class="hud-line-btn" aria-pressed="true">Racing line</button>
+        </div>
       </div>`;
     this.container.append(hud);
 
@@ -1027,9 +1080,11 @@ export class OnboardView {
       brake: q('.hud-brake'),
       driverGroup: q('.hud-switch .hud-group'),
       camButtons: [...hud.querySelectorAll('[data-cam]')],
+      lineButton: q('.hud-line-btn'),
       rows: new Map(),
     };
     this.hud.camButtons.forEach((b) => b.addEventListener('click', () => this.setCamera(Number(b.dataset.cam))));
+    this.hud.lineButton.addEventListener('click', () => this.setRacingLine(!this.showLine));
   }
 
   setData({ drivers, sectorTimes }) {
@@ -1054,6 +1109,11 @@ export class OnboardView {
       const car = buildCar(d);
       this.world.add(car.group);
       return car;
+    });
+    this.lines = drivers.map((d) => {
+      const line = buildRacingLine(d, this.toWorld);
+      this.world.add(line);
+      return line;
     });
     this.scene.add(this.world);
 
@@ -1080,6 +1140,7 @@ export class OnboardView {
     if (!this.cars.length) return;
     this.viewIndex = (i + this.cars.length) % this.cars.length;
     this.cars.forEach((car, j) => setGhost(car, j !== this.viewIndex));
+    this.lines.forEach((line, j) => (line.visible = this.showLine && j === this.viewIndex));
     this.cars[this.viewIndex].body.add(this.camera); // onboard cameras pitch and roll with the car
     this.hud.driverGroup.querySelectorAll('button').forEach((b, j) => b.setAttribute('aria-pressed', String(j === this.viewIndex)));
     const d = this.drivers[this.viewIndex];
@@ -1099,6 +1160,13 @@ export class OnboardView {
     const own = this.cars[this.viewIndex];
     if (own) own.helmet.visible = cam.id !== 'cockpit';
     this.hud.camButtons.forEach((b, j) => b.setAttribute('aria-pressed', String(j === this.cameraIndex)));
+    this.onChange?.();
+  }
+
+  setRacingLine(on) {
+    this.showLine = on;
+    this.lines.forEach((line, j) => (line.visible = on && j === this.viewIndex));
+    this.hud.lineButton.setAttribute('aria-pressed', String(on));
     this.onChange?.();
   }
 
