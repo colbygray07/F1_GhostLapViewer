@@ -19,6 +19,11 @@ const els = {
   clock: $('#clock'),
   speeds: [...document.querySelectorAll('[data-speed]')],
   tower: $('#tower-list'),
+  onboard: $('#onboard'),
+  canvas: $('#track-canvas'),
+  stage: document.querySelector('.stage'),
+  viewButtons: [...document.querySelectorAll('[data-view-mode]')],
+  fullscreen: $('#fullscreen-btn'),
   speedReadout: $('#speed-readout'),
   deltaReadout: $('#delta-readout'),
   sectorTable: $('#sector-table'),
@@ -36,7 +41,12 @@ const state = {
   loadId: 0,
   dirty: true,
   towerRows: new Map(),
+  view: 'map',
 };
+
+// The 3D onboard view is loaded the first time someone opens it, so the
+// map view doesn't have to download three.js.
+let onboard = null;
 
 const trackView = new TrackView($('#track-canvas'));
 const speedChart = new LineChart($('#speed-chart'), {
@@ -163,6 +173,8 @@ function setup(track, drivers) {
   const sectorMarks = sectorTimes.map((t) => ref.progressAt(t));
 
   trackView.setData({ drivers, rotation: track.rotation, sectorTimes });
+  state.sectorTimes = sectorTimes;
+  onboard?.setData({ drivers, sectorTimes });
 
   els.scrubber.max = Math.round(state.maxDuration);
   els.scrubMarks.innerHTML = sectorTimes
@@ -283,6 +295,33 @@ function showReadout(target, chart, x, fmt) {
     .join('');
 }
 
+// ---------- Views ----------
+
+async function setView(view) {
+  state.view = view;
+  els.viewButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.viewMode === view)));
+  if (view === 'onboard' && !onboard) {
+    const { OnboardView } = await import('./onboardView.js');
+    onboard = new OnboardView(els.onboard);
+    onboard.onChange = () => (state.dirty = true);
+    if (state.drivers.length) onboard.setData({ drivers: state.drivers, sectorTimes: state.sectorTimes });
+  }
+  els.onboard.hidden = view !== 'onboard';
+  els.canvas.hidden = view === 'onboard';
+  state.dirty = true;
+}
+
+els.viewButtons.forEach((b) => b.addEventListener('click', () => setView(b.dataset.viewMode)));
+
+function toggleFullscreen() {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else els.stage.requestFullscreen?.();
+}
+els.fullscreen.addEventListener('click', toggleFullscreen);
+document.addEventListener('fullscreenchange', () => {
+  els.fullscreen.setAttribute('aria-label', document.fullscreenElement ? 'Exit full screen' : 'Full screen');
+});
+
 // ---------- Playback ----------
 
 function setPlaying(playing) {
@@ -326,6 +365,13 @@ document.addEventListener('keydown', (e) => {
     setTime(state.t + 1000);
   } else if (e.key === 'ArrowLeft') {
     setTime(state.t - 1000);
+  } else if (e.key === 'v' || e.key === 'V') {
+    setView(state.view === 'map' ? 'onboard' : 'map');
+  } else if (e.key === 'f' || e.key === 'F') {
+    toggleFullscreen();
+  } else if (state.view === 'onboard' && onboard) {
+    if (e.key === 'c' || e.key === 'C') onboard.setCamera(onboard.cameraIndex + 1);
+    else if (['1', '2', '3'].includes(e.key)) onboard.setDriver(Number(e.key) - 1);
   }
 });
 
@@ -351,11 +397,13 @@ function standings(t) {
 
 function render() {
   const t = state.t;
-  trackView.draw(t);
+  const rows = standings(t);
+  if (state.view === 'onboard' && onboard) onboard.draw(t, rows);
+  else trackView.draw(t);
   els.scrubber.value = Math.round(t);
   els.clock.textContent = formatLapTime(t);
 
-  standings(t).forEach((r, i) => {
+  rows.forEach((r, i) => {
     const row = state.towerRows.get(r.d);
     const car = r.d.carAt(Math.min(t, r.d.duration));
     row.li.style.order = i;

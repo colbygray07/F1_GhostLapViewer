@@ -285,14 +285,16 @@ main {
   text-align: right;
 }
 
-.speed-toggle {
+.speed-toggle,
+.view-toggle {
   display: flex;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
-.speed-toggle button {
+.speed-toggle button,
+.view-toggle button {
   border: 0;
   padding: 0.35rem 0.55rem;
   background: none;
@@ -301,13 +303,419 @@ main {
   cursor: pointer;
 }
 
-.speed-toggle button + button {
+.speed-toggle button + button,
+.view-toggle button + button {
   border-left: 1px solid var(--line);
 }
 
-.speed-toggle button[aria-pressed='true'] {
+.speed-toggle button[aria-pressed='true'],
+.view-toggle button[aria-pressed='true'] {
   background: var(--text);
   color: var(--asphalt);
+}
+
+/* ---------- Full screen ---------- */
+
+.stage:fullscreen {
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-radius: 0;
+}
+
+.stage:fullscreen .stage-canvas {
+  flex: 1;
+  height: auto;
+}
+
+/* ---------- Onboard view: TV broadcast graphics ---------- */
+
+.onboard {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #8dbbe6;
+}
+
+.onboard-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Soft vignette, like a camera lens. */
+.onboard::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 60%, rgb(0 0 0 / 0.28) 100%);
+}
+
+.hud {
+  --hud-bg: rgb(16 19 24 / 0.86);
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: clamp(0.6rem, 2vw, 1.25rem);
+  pointer-events: none;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud button {
+  pointer-events: auto;
+}
+
+.hud-top-left {
+  position: absolute;
+  top: clamp(0.6rem, 2vw, 1.25rem);
+  left: clamp(0.6rem, 2vw, 1.25rem);
+  width: 210px;
+}
+
+.hud-bug {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 34px;
+  padding-right: 0.6rem;
+  background: var(--hud-bg);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+/* The Ghost Lap mark: a slanted purple tab, the "fastest" colour. */
+.hud-mark {
+  align-self: stretch;
+  width: 30px;
+  background: var(--purple);
+  clip-path: polygon(0 0, 100% 0, 62% 100%, 0 100%);
+}
+
+.hud-brand {
+  white-space: nowrap;
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 900;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.hud-replay {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: auto;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.hud-replay i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff3b30;
+}
+
+.hud-tower {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  background: var(--hud-bg);
+  border-radius: 3px;
+}
+
+.hud-tower li {
+  display: grid;
+  grid-template-columns: 1.4rem 4px 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.6rem 0.3rem 0.4rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.hud-tower li + li {
+  border-top: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.hud-tower li.is-viewing {
+  background: rgb(255 255 255 / 0.1);
+}
+
+.hud-tower .p {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.05rem;
+  text-align: center;
+}
+
+.hud-tower .c {
+  height: 16px;
+  border-radius: 1px;
+}
+
+.hud-tower .n {
+  font-weight: 700;
+}
+
+.hud-tower .g {
+  color: rgb(255 255 255 / 0.8);
+}
+
+.hud-clock {
+  position: absolute;
+  top: clamp(0.6rem, 2vw, 1.25rem);
+  right: clamp(0.6rem, 2vw, 1.25rem);
+  min-width: 180px;
+  background: var(--hud-bg);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.hud-laptime {
+  padding: 0.25rem 0.75rem 0.15rem;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 2rem;
+  line-height: 1.1;
+  text-align: right;
+}
+
+.hud-laptime.is-done {
+  color: var(--purple);
+}
+
+.hud-sectors {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: 0 2px 2px;
+}
+
+.hud-sectors span {
+  padding: 0.2rem 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+  color: rgb(255 255 255 / 0.45);
+  background: rgb(255 255 255 / 0.06);
+}
+
+.hud-sectors .is-live {
+  color: #fff;
+  box-shadow: inset 0 -2px 0 #fff;
+}
+
+.hud-sectors .is-best {
+  color: #fff;
+  background: var(--purple);
+}
+
+.hud-sectors .is-slower {
+  color: #14181e;
+  background: var(--sector);
+}
+
+.hud-onboard {
+  position: absolute;
+  left: clamp(0.6rem, 2vw, 1.25rem);
+  bottom: clamp(0.6rem, 2vw, 1.25rem);
+  width: min(400px, calc(100% - 1.5rem));
+  background: var(--hud-bg);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.hud-driver {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.35rem 0.75rem 0.35rem 0;
+  border-bottom: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.hud-driver-bar {
+  align-self: stretch;
+  width: 6px;
+}
+
+.hud-driver-name {
+  font-weight: 700;
+}
+
+.hud-driver-team {
+  margin-left: auto;
+  color: rgb(255 255 255 / 0.65);
+  font-size: 0.85rem;
+}
+
+.hud-dash {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.hud-speed b,
+.hud-gear b {
+  display: block;
+  font-family: var(--display);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.hud-speed b {
+  min-width: 3ch;
+  font-size: 2.6rem;
+  text-align: right;
+}
+
+.hud-speed span,
+.hud-gear span {
+  display: block;
+  font-size: 0.7rem;
+  color: rgb(255 255 255 / 0.6);
+  text-align: right;
+}
+
+.hud-gear {
+  padding-left: 1rem;
+  border-left: 1px solid rgb(255 255 255 / 0.12);
+}
+
+.hud-gear b {
+  font-size: 2.6rem;
+  text-align: center;
+}
+
+.hud-gear span {
+  text-align: center;
+}
+
+.hud-rpm {
+  display: grid;
+  grid-template-columns: repeat(15, 1fr);
+  gap: 3px;
+}
+
+.hud-rpm i {
+  height: 10px;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 0.1);
+}
+
+.hud-rpm i.on:nth-child(-n + 6) { background: #22e06b; }
+.hud-rpm i.on:nth-child(n + 7):nth-child(-n + 12) { background: #ff3131; }
+.hud-rpm i.on:nth-child(n + 13) { background: #4f7cff; }
+
+.hud-pedals {
+  display: flex;
+  gap: 4px;
+  height: 40px;
+}
+
+.hud-pedal {
+  position: relative;
+  width: 8px;
+  background: rgb(255 255 255 / 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.hud-pedal i {
+  position: absolute;
+  inset: auto 0 0;
+  height: 0;
+}
+
+.hud-throttle {
+  background: #22e06b;
+}
+
+.hud-brake {
+  background: #ff3131;
+}
+
+.hud-switch {
+  position: absolute;
+  right: clamp(0.6rem, 2vw, 1.25rem);
+  bottom: clamp(0.6rem, 2vw, 1.25rem);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.hud-group {
+  display: flex;
+  background: var(--hud-bg);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.hud-group button {
+  border: 0;
+  padding: 0.35rem 0.6rem;
+  background: none;
+  color: rgb(255 255 255 / 0.7);
+  font: 700 0.8rem var(--body);
+  cursor: pointer;
+}
+
+.hud-group button:hover {
+  color: #fff;
+}
+
+.hud-group button[aria-pressed='true'] {
+  color: #14181e;
+  background: #fff;
+}
+
+.hud-group button[data-view][aria-pressed='true'] {
+  box-shadow: inset 0 -3px 0 var(--c);
+}
+
+/* Narrow screens: keep the essentials, drop the extras. */
+.hud-compact .hud-tower,
+.hud-compact .hud-rpm,
+.hud-compact .hud-replay {
+  display: none;
+}
+
+.hud-compact .hud-top-left {
+  width: auto;
+}
+
+.hud-compact .hud-clock {
+  min-width: 130px;
+}
+
+.hud-compact .hud-bug {
+  padding-right: 0.75rem;
+}
+
+.hud-compact .hud-laptime {
+  font-size: 1.5rem;
+}
+
+.hud-compact .hud-onboard {
+  width: auto;
+}
+
+.hud-compact .hud-dash {
+  grid-template-columns: auto auto auto;
+}
+
+.hud-compact .hud-speed b,
+.hud-compact .hud-gear b {
+  font-size: 1.9rem;
+}
+
+.hud-compact .hud-driver-team {
+  display: none;
 }
 
 /* ---------- Live timing tower ---------- */
@@ -622,4 +1030,9 @@ main {
   html {
     scroll-behavior: auto;
   }
+}
+
+.hud-compact .hud-switch {
+  top: 5.6rem;
+  bottom: auto;
 }

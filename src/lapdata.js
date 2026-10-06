@@ -47,11 +47,19 @@ export function buildDriverLap({ lap, driver, locations, carData, index }) {
   for (let i = 0; i < n; i++) {
     const t = Math.min(i * STEP_MS, duration);
     while (j < loc.length - 2 && loc[j + 1].t < t) j++;
+    // Catmull-Rom spline through the samples gives smooth curves through
+    // corners instead of straight lines between data points.
+    const p0 = loc[Math.max(j - 1, 0)];
     const a = loc[j];
     const b = loc[j + 1];
+    const p3 = loc[Math.min(j + 2, loc.length - 1)];
     const k = b.t === a.t ? 0 : clamp((t - a.t) / (b.t - a.t), 0, 1);
-    xs[i] = a.x + (b.x - a.x) * k;
-    ys[i] = a.y + (b.y - a.y) * k;
+    const k2 = k * k;
+    const k3 = k2 * k;
+    const spline = (v0, v1, v2, v3) =>
+      0.5 * (2 * v1 + (v2 - v0) * k + (2 * v0 - 5 * v1 + 4 * v2 - v3) * k2 + (3 * v1 - v0 - 3 * v2 + v3) * k3);
+    xs[i] = spline(p0.x, a.x, b.x, p3.x);
+    ys[i] = spline(p0.y, a.y, b.y, p3.y);
     if (i > 0) dist[i] = dist[i - 1] + Math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]);
   }
   const total = dist[n - 1] || 1;
@@ -99,7 +107,7 @@ export function buildDriverLap({ lap, driver, locations, carData, index }) {
   }
 
   function carAt(t) {
-    if (!car.length) return { speed: 0, gear: 0, throttle: 0, brake: false };
+    if (!car.length) return { speed: 0, gear: 0, throttle: 0, brake: false, rpm: 0 };
     let lo = 0;
     let hi = car.length - 1;
     if (t <= car[0].t) return car[0];
@@ -116,6 +124,7 @@ export function buildDriverLap({ lap, driver, locations, carData, index }) {
     return {
       speed: a.speed + (b.speed - a.speed) * k,
       throttle: a.throttle + (b.throttle - a.throttle) * k,
+      rpm: a.rpm + (b.rpm - a.rpm) * k,
       gear: near.gear,
       brake: near.brake,
     };
@@ -135,8 +144,15 @@ export function buildDriverLap({ lap, driver, locations, carData, index }) {
   let gearChanges = 0;
   for (let i = 1; i < inLap.length; i++) if (inLap[i].gear !== inLap[i - 1].gear) gearChanges++;
 
+  // OpenF1 doesn't document its x/y units, so work out metres per unit from
+  // the lap itself: average speed x lap time = real lap distance.
+  const avgSpeed = inLap.length ? inLap.reduce((s, c) => s + c.speed, 0) / inLap.length : 0;
+  const realMetres = (avgSpeed / 3.6) * (duration / 1000);
+  const metresPerUnit = realMetres > 0 ? realMetres / total : 0.1;
+
   return {
     index,
+    metresPerUnit,
     driverNumber: lap.driver_number,
     acronym,
     name: driver?.full_name ?? acronym,
@@ -151,7 +167,7 @@ export function buildDriverLap({ lap, driver, locations, carData, index }) {
     stats: {
       topSpeed: inLap.length ? Math.max(...inLap.map((c) => c.speed)) : null,
       speedTrap: lap.st_speed ?? null,
-      avgSpeed: inLap.length ? inLap.reduce((s, c) => s + c.speed, 0) / inLap.length : null,
+      avgSpeed: inLap.length ? avgSpeed : null,
       fullThrottle: share((c) => c.throttle >= 98),
       braking: share((c) => c.brake),
       gearChanges,
