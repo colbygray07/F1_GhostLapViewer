@@ -1,0 +1,625 @@
+/* Ghost Lap: styled after a pit wall timing screen.
+   Dark asphalt, team colours for the cars, and the timing-screen convention
+   of purple for "best" and yellow for sector markers. */
+
+:root {
+  --asphalt: #14181e;
+  --panel: #1b2027;
+  --panel-raised: #222831;
+  --line: #2c333d;
+  --text: #eceef1;
+  --muted: #8c95a2;
+  --purple: #b46cff;
+  --sector: #ffd23f;
+
+  --display: 'Big Shoulders Display', 'Arial Narrow', 'Roboto Condensed', sans-serif;
+  --body: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --radius-sm: 4px;
+  --radius: 10px;
+  --gutter: clamp(1rem, 3vw, 2rem);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 4.5rem;
+}
+
+body {
+  margin: 0;
+  background: var(--asphalt);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 1rem;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--sector);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- Header ---------- */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 0.75rem var(--gutter);
+  background: rgb(20 24 30 / 0.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: 1.6rem;
+  line-height: 1;
+  text-decoration: none;
+  letter-spacing: 0.01em;
+}
+
+.site-nav {
+  display: flex;
+  gap: 1.5rem;
+  margin-right: auto;
+}
+
+.site-nav a {
+  color: var(--muted);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.site-nav a:hover {
+  color: var(--text);
+}
+
+.track-picker select {
+  appearance: none;
+  background: var(--panel-raised)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23eceef1' stroke-width='1.6'/%3E%3C/svg%3E")
+    no-repeat right 0.8rem center;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 2.2rem 0.5rem 0.8rem;
+  font: 600 0.95rem var(--body);
+  cursor: pointer;
+}
+
+/* ---------- Replay ---------- */
+
+main {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+.replay-head {
+  padding: clamp(1.25rem, 3vw, 2.25rem) 0 1rem;
+}
+
+#track-name {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: clamp(3.5rem, 9vw, 7rem);
+  line-height: 0.82;
+  letter-spacing: -0.01em;
+}
+
+.track-sub {
+  margin: 0.6rem 0 0;
+  max-width: 56ch;
+  color: var(--muted);
+  font-size: 1.1rem;
+}
+
+.replay-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.stage {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.stage-canvas {
+  position: relative;
+  height: clamp(320px, calc(100vh - 21rem), 640px);
+}
+
+#track-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.stage-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 2rem;
+  text-align: center;
+  color: var(--muted);
+  background: var(--panel);
+}
+
+.stage-status p {
+  margin: 0;
+  max-width: 44ch;
+}
+
+/* ---------- Controls ---------- */
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--line);
+  background: var(--panel-raised);
+}
+
+.btn {
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  cursor: pointer;
+  color: var(--text);
+  background: none;
+  font: inherit;
+}
+
+.btn svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.btn-play {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--text);
+  color: var(--asphalt);
+}
+
+.btn-play .icon-pause,
+.btn-play.is-playing .icon-play {
+  display: none;
+}
+
+.btn-play.is-playing .icon-pause {
+  display: block;
+}
+
+.btn-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--muted);
+}
+
+.btn-icon:hover {
+  color: var(--text);
+  background: var(--line);
+}
+
+.btn-text {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+}
+
+.btn-text:hover {
+  background: var(--line);
+}
+
+.scrub {
+  position: relative;
+  flex: 1;
+  min-width: 120px;
+}
+
+.scrub input {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--text);
+  cursor: pointer;
+}
+
+.scrub-marks span {
+  position: absolute;
+  top: -6px;
+  width: 2px;
+  height: 6px;
+  background: var(--sector);
+  pointer-events: none;
+}
+
+.clock {
+  min-width: 5.5ch;
+  font-weight: 600;
+  font-size: 1.05rem;
+  text-align: right;
+}
+
+.speed-toggle {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.speed-toggle button {
+  border: 0;
+  padding: 0.35rem 0.55rem;
+  background: none;
+  color: var(--muted);
+  font: 600 0.9rem var(--body);
+  cursor: pointer;
+}
+
+.speed-toggle button + button {
+  border-left: 1px solid var(--line);
+}
+
+.speed-toggle button[aria-pressed='true'] {
+  background: var(--text);
+  color: var(--asphalt);
+}
+
+/* ---------- Live timing tower ---------- */
+
+.tower {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+.tower-title {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.tower-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tower-row {
+  display: grid;
+  grid-template-columns: 1.6rem 4px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'pos bar who gap'
+    'pos bar live live';
+  column-gap: 0.7rem;
+  row-gap: 0.45rem;
+  padding: 0.75rem 0.75rem 0.75rem 0.5rem;
+  background: var(--panel-raised);
+  border-radius: var(--radius-sm);
+}
+
+.pos {
+  grid-area: pos;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.team-bar {
+  grid-area: bar;
+  border-radius: 2px;
+  background: var(--c);
+}
+
+.team-bar-ring {
+  background: repeating-linear-gradient(var(--c) 0 6px, transparent 6px 10px);
+}
+
+.who {
+  grid-area: who;
+  min-width: 0;
+}
+
+.who-name,
+.who-team {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.who-name {
+  font-weight: 700;
+}
+
+.who-team {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.gap {
+  grid-area: gap;
+  font-weight: 600;
+  text-align: right;
+}
+
+.is-finished .gap {
+  color: var(--text);
+}
+
+.live {
+  grid-area: live;
+  display: grid;
+  grid-template-columns: auto auto 1fr 1fr;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.live b {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.live-speed b {
+  display: inline-block;
+  min-width: 3ch;
+  text-align: right;
+  font-size: 1.15rem;
+}
+
+.pedal {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.pedal-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+}
+
+.throttle {
+  background: #3ddc84;
+}
+
+.brake {
+  background: #ff4d4d;
+}
+
+.hint {
+  margin: 0.9rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* ---------- Sections ---------- */
+
+.section {
+  padding: clamp(3rem, 7vw, 5rem) 0 0;
+}
+
+.section-head h2 {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(2.2rem, 5vw, 3.4rem);
+  line-height: 1;
+}
+
+.section-head p {
+  margin: 0.6rem 0 1.5rem;
+  max-width: 62ch;
+  color: var(--muted);
+}
+
+.chart-block {
+  margin: 0 0 1.25rem;
+  padding: 1rem 1rem 0.5rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.chart-block figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+  min-height: 1.6rem;
+  margin-bottom: 0.25rem;
+}
+
+.chart-title {
+  font-weight: 600;
+}
+
+.readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.1rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.chart {
+  display: block;
+  width: 100%;
+  height: 200px;
+  cursor: crosshair;
+  touch-action: pan-y;
+}
+
+.chart-tall {
+  height: 280px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 0.45rem;
+  border-radius: 50%;
+  background: var(--c);
+  vertical-align: 0;
+}
+
+.swatch-ring {
+  background: transparent;
+  box-shadow: inset 0 0 0 2.5px var(--c);
+}
+
+/* ---------- Tables ---------- */
+
+.table-wrap {
+  overflow-x: auto;
+  margin-bottom: 1.25rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  white-space: nowrap;
+}
+
+.data-table caption {
+  padding: 1rem 1rem 0.5rem;
+  text-align: left;
+  font-weight: 600;
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.7rem 1rem;
+  text-align: right;
+  border-top: 1px solid var(--line);
+}
+
+.data-table thead th {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.data-table th:first-child {
+  text-align: left;
+}
+
+.data-table tbody th {
+  font-weight: 600;
+}
+
+.data-table td.best {
+  color: var(--purple);
+  font-weight: 700;
+}
+
+/* ---------- Footer ---------- */
+
+.site-footer {
+  max-width: 1320px;
+  margin: 4rem auto 0;
+  padding: 1.5rem var(--gutter) 2.5rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+/* ---------- Smaller screens ---------- */
+
+@media (max-width: 980px) {
+  .replay-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .site-header {
+    gap: 1rem;
+  }
+
+  .site-nav {
+    display: none;
+  }
+
+  .track-picker {
+    margin-left: auto;
+  }
+
+  .controls {
+    flex-wrap: wrap;
+  }
+
+  .scrub {
+    order: 5;
+    flex-basis: 100%;
+  }
+
+  .speed-toggle {
+    margin-left: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
