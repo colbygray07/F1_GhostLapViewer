@@ -13,7 +13,7 @@ const GRAVEL_CURVATURE = 1 / 75; // ...and tighter than 75 m get a gravel trap o
 const SUN = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(54), THREE.MathUtils.degToRad(150));
 
 export const CAMERAS = [
-  { id: 'tcam', label: 'T-cam', pos: [0, 1.36, 0.95], pitch: -0.1, fov: 56 },
+  { id: 'tcam', label: 'T-cam', pos: [0, 1.38, 1.0], pitch: -0.17, fov: 60 },
   { id: 'cockpit', label: 'Cockpit', pos: [0, 0.9, 0.18], pitch: -0.035, fov: 64 },
   { id: 'chase', label: 'Chase', pos: [0, 2.5, 8.2], pitch: -0.13, fov: 54 },
 ];
@@ -920,7 +920,7 @@ function buildCar(driver, teammateIndex = 0) {
   const body = new THREE.Group(); // pitch and roll on top of that
   group.add(body);
 
-  const paintProps = { metalness: 0.15, roughness: 0.35, clearcoat: 0.7, clearcoatRoughness: 0.12 };
+  const paintProps = { metalness: 0.05, roughness: 0.45, clearcoat: 0.35, clearcoatRoughness: 0.2 };
   const liveryMat = new THREE.MeshPhysicalMaterial({ map: liveryTexture(colours, seed), ...paintProps });
   const paint = new THREE.MeshPhysicalMaterial({ color: colours.base, ...paintProps });
   const contrast = new THREE.MeshPhysicalMaterial({ color: colours.contrast, ...paintProps });
@@ -987,7 +987,6 @@ function buildCar(driver, teammateIndex = 0) {
   ], 28, 4), liveryMat);
   for (const sd of [1, -1]) {
     add(body, box(0.2, 0.2, 0.05), carbon, sd * 0.6, 0.39, -0.64); // sidepod inlets
-    add(body, box(0.05, 0.14, 0.9), carbon, sd * 0.78, 0.17, 0.1); // undercut shadow below the sidepod
   }
 
   // Airbox, shark fin and T-cam pod.
@@ -997,9 +996,9 @@ function buildCar(driver, teammateIndex = 0) {
     { z: 1.2, w: 0.22, h: 0.26, y: 0.82 },
     { z: 1.8, w: 0.1, h: 0.14, y: 0.62 },
   ], 16), paint);
-  add(body, box(0.2, 0.14, 0.04), carbon, 0, 0.98, 0.33);
+  add(body, new THREE.PlaneGeometry(0.17, 0.11), carbon, 0, 0.975, 0.335, 0, Math.PI); // intake, facing forward
   add(body, box(0.014, 0.22, 1.05), paint, 0, 0.88, 1.55, -0.12);
-  add(body, box(0.12, 0.05, 0.1), tcamMat, 0, 1.11, 0.45);
+  const tcamPod = add(body, box(0.12, 0.05, 0.1), tcamMat, 0, 1.11, 0.45);
 
   // Floor, edge wings and diffuser with strakes.
   add(body, box(1.7, 0.03, 3.5), carbon, 0, 0.07, 0.3);
@@ -1034,8 +1033,8 @@ function buildCar(driver, teammateIndex = 0) {
   // Mirrors on stalks.
   for (const sd of [1, -1]) {
     body.add(rod([sd * 0.3, 0.62, -0.75], [sd * 0.48, 0.67, -0.8], 0.012, carbon));
-    add(body, box(0.17, 0.07, 0.07), paint, sd * 0.51, 0.68, -0.8);
-    add(body, box(0.15, 0.055, 0.01), metal, sd * 0.51, 0.68, -0.765);
+    add(body, new THREE.SphereGeometry(1, 20, 12), paint, sd * 0.51, 0.68, -0.8).scale.set(0.095, 0.036, 0.045);
+    add(body, new THREE.PlaneGeometry(0.15, 0.05), metal, sd * 0.51, 0.68, -0.757);
   }
 
   // Halo with a painted top fairing.
@@ -1089,6 +1088,14 @@ function buildCar(driver, teammateIndex = 0) {
     decal(t2, 0.44, 0.11, sd * 0.188, 0.34, -1.75, face); // nose sides
   }
   decal(t1, 0.86, 0.215, 0, 0.995, 2.35, 0, -Math.PI / 2 - 0.55); // DRS flap, top
+  // Sidepod tops: the sponsors you see from the onboard cameras.
+  for (const sd of [1, -1]) {
+    decal(sd > 0 ? t1 : t2, 0.44, 0.11, sd * 0.52, 0.562, -0.3, 0, -Math.PI / 2);
+    decal(sd > 0 ? t2 : t1, 0.4, 0.1, sd * 0.5, 0.548, 0.55, 0, -Math.PI / 2);
+  }
+  // Halo top and nose, along their length.
+  decal(t2, 0.34, 0.085, 0, 1.237, -0.18, 0, -Math.PI / 2 + 0.25);
+  for (const sd of [1, -1]) decal(t1, 0.42, 0.105, sd * 0.11, 0.52, -1.3, Math.PI / 2, -Math.PI / 2);
   decal(numberTexture(driver.driverNumber, colours.contrast, colours.base), 0.2, 0.15, 0, 0.402, -2.2, Math.PI, -Math.PI / 2); // nose
 
   // Wheels: rounded tyres with soft-compound red bands and wheel covers.
@@ -1154,7 +1161,7 @@ function buildCar(driver, teammateIndex = 0) {
   tag.renderOrder = 10;
   group.add(tag);
 
-  return { group, body, mats, decalMats, wheels, steerers, steering, helmet, leds, tag, blob, heading: 0, steer: 0, pitch: 0, roll: 0, spin: 0 };
+  return { group, body, tcamPod, mats, decalMats, wheels, steerers, steering, helmet, leds, tag, blob, heading: 0, steer: 0, pitch: 0, roll: 0, spin: 0 };
 }
 
 function setGhost(car, ghost) {
@@ -1230,7 +1237,7 @@ export class OnboardView {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     // Neutral tone mapping keeps team colours true instead of washing them out.
     this.renderer.toneMapping = THREE.NeutralToneMapping;
-    this.renderer.toneMappingExposure = 0.85;
+    this.renderer.toneMappingExposure = 0.78;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.domElement.className = 'onboard-canvas';
@@ -1261,7 +1268,7 @@ export class OnboardView {
     pmrem.dispose();
 
     this.scene.add(new THREE.HemisphereLight('#c4d8ff', '#3e5a2f', 0.45));
-    this.sun = new THREE.DirectionalLight('#fff1dc', 3.4);
+    this.sun = new THREE.DirectionalLight('#fff1dc', 2.9);
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     const sc = this.sun.shadow.camera;
@@ -1429,7 +1436,10 @@ export class OnboardView {
     this.camera.rotation.set(cam.pitch, 0, 0);
     this.applyFov();
     const own = this.cars[this.viewIndex];
-    if (own) own.helmet.visible = cam.id !== 'cockpit';
+    if (own) {
+      own.helmet.visible = cam.id !== 'cockpit';
+      own.tcamPod.visible = cam.id !== 'tcam'; // the camera is mounted on it
+    }
     this.hud.camButtons.forEach((b, j) => b.setAttribute('aria-pressed', String(j === this.cameraIndex)));
     this.onChange?.();
   }
