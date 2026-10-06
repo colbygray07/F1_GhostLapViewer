@@ -102,10 +102,18 @@ export class TrackView {
 
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
+    // Soft shadow under the track, then the edge lines, then the asphalt.
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+    ctx.shadowBlur = 18;
     ctx.strokeStyle = '#3A4250';
-    ctx.lineWidth = this.trackWidth + 5;
+    ctx.lineWidth = this.trackWidth + 6;
     ctx.stroke(path);
-    ctx.strokeStyle = '#242A33';
+    ctx.restore();
+    ctx.strokeStyle = '#C9CED6';
+    ctx.lineWidth = this.trackWidth + 2;
+    ctx.stroke(path);
+    ctx.strokeStyle = '#272D36';
     ctx.lineWidth = this.trackWidth;
     ctx.stroke(path);
 
@@ -183,6 +191,15 @@ export class TrackView {
     // Draw the leader last so it stays on top.
     const r = Math.max(6, this.trackWidth * 0.55);
     for (const { d, p } of [...cars].reverse()) {
+      // Glow in the team colour so each car pops off the track.
+      ctx.save();
+      ctx.shadowColor = d.colour;
+      ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = d.ring ? 'rgba(0,0,0,0)' : d.colour;
+      ctx.fill();
+      ctx.restore();
       ctx.beginPath();
       ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
       if (d.ring) {

@@ -80,12 +80,23 @@ a {
 }
 
 .brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
   font-family: var(--display);
+  font-style: italic;
   font-weight: 900;
   font-size: 1.6rem;
   line-height: 1;
   text-decoration: none;
-  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.brand-mark {
+  width: 22px;
+  height: 26px;
+  background: var(--purple);
+  clip-path: polygon(0 0, 100% 0, 62% 100%, 0 100%);
 }
 
 .site-nav {
@@ -419,6 +430,8 @@ main {
 }
 
 .hud-tower {
+  display: flex;
+  flex-direction: column;
   margin: 4px 0 0;
   padding: 0;
   list-style: none;
@@ -539,6 +552,14 @@ main {
 .hud-driver-bar {
   align-self: stretch;
   width: 6px;
+}
+
+.hud-driver-num {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 900;
+  font-size: 1.3rem;
+  line-height: 1;
 }
 
 .hud-driver-name {
@@ -1002,6 +1023,10 @@ main {
 @media (max-width: 640px) {
   .site-header {
     gap: 1rem;
+  }
+
+  .brand {
+    font-size: 1.25rem;
   }
 
   .site-nav {

@@ -106,7 +106,7 @@ async function load(track) {
   els.select.value = track.id;
   els.name.textContent = track.name;
   els.sub.textContent = `The three fastest laps from ${track.session.toLowerCase()} at the ${track.year} ${track.event}, raced against each other.`;
-  document.title = `${track.name} ${track.year} | Ghost Lap`;
+  document.title = `${track.name} ${track.year} | F1 Ghost Lap Viewer`;
 
   const totalSteps = 3 + 3 * 2;
   let step = 0;

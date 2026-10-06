@@ -35,20 +35,22 @@ export function buildDriverLap({ lap, driver, locations, carData, index }) {
   const loc = locations
     .map((p) => ({ t: parseDate(p.date) - t0, x: p.x, y: p.y }))
     .filter((p) => Number.isFinite(p.t) && !(p.x === 0 && p.y === 0))
-    .sort((a, b) => a.t - b.t);
+    .sort((a, b) => a.t - b.t)
+    .filter((p, i, arr) => i === 0 || p.t > arr[i - 1].t); // drop duplicate timestamps
   if (loc.length < 20) throw new Error(`OpenF1 has too little position data for ${acronym}'s lap.`);
 
-  // Resample positions onto an even time grid and measure distance travelled.
+  // Resample positions onto an even time grid. We sample a little before and
+  // after the lap too, so the smoothing below has data at the lap's edges.
   const n = Math.floor(duration / STEP_MS) + 2;
-  const xs = new Float64Array(n);
-  const ys = new Float64Array(n);
-  const dist = new Float64Array(n);
+  const PAD = 30;
+  const rawX = new Float64Array(n + PAD * 2);
+  const rawY = new Float64Array(n + PAD * 2);
   let j = 0;
-  for (let i = 0; i < n; i++) {
-    const t = Math.min(i * STEP_MS, duration);
+  for (let i = 0; i < rawX.length; i++) {
+    const t = (i - PAD) * STEP_MS;
     while (j < loc.length - 2 && loc[j + 1].t < t) j++;
-    // Catmull-Rom spline through the samples gives smooth curves through
-    // corners instead of straight lines between data points.
+    // Catmull-Rom spline through the samples gives curves through corners
+    // instead of straight lines between data points.
     const p0 = loc[Math.max(j - 1, 0)];
     const a = loc[j];
     const b = loc[j + 1];
@@ -58,8 +60,29 @@ export function buildDriverLap({ lap, driver, locations, carData, index }) {
     const k3 = k2 * k;
     const spline = (v0, v1, v2, v3) =>
       0.5 * (2 * v1 + (v2 - v0) * k + (2 * v0 - 5 * v1 + 4 * v2 - v3) * k2 + (3 * v1 - v0 - 3 * v2 + v3) * k3);
-    xs[i] = spline(p0.x, a.x, b.x, p3.x);
-    ys[i] = spline(p0.y, a.y, b.y, p3.y);
+    rawX[i] = spline(p0.x, a.x, b.x, p3.x);
+    rawY[i] = spline(p0.y, a.y, b.y, p3.y);
+  }
+
+  // The raw positions are a bit noisy, which makes cars wobble. A Gaussian
+  // blur over ~150 ms irons that out without cutting corners.
+  const SIGMA = 3;
+  const RADIUS = SIGMA * 3;
+  const weights = Array.from({ length: RADIUS * 2 + 1 }, (_, k) => Math.exp(-((k - RADIUS) ** 2) / (2 * SIGMA * SIGMA)));
+  const xs = new Float64Array(n);
+  const ys = new Float64Array(n);
+  const dist = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    let sx = 0, sy = 0, sw = 0;
+    for (let k = -RADIUS; k <= RADIUS; k++) {
+      const idx = clamp(i + PAD + k, 0, rawX.length - 1);
+      const w = weights[k + RADIUS];
+      sx += rawX[idx] * w;
+      sy += rawY[idx] * w;
+      sw += w;
+    }
+    xs[i] = sx / sw;
+    ys[i] = sy / sw;
     if (i > 0) dist[i] = dist[i - 1] + Math.hypot(xs[i] - xs[i - 1], ys[i] - ys[i - 1]);
   }
   const total = dist[n - 1] || 1;
