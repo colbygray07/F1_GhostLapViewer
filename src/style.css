@@ -363,6 +363,15 @@ main {
   height: 100%;
 }
 
+.onboard.is-orbit .onboard-canvas {
+  cursor: grab;
+  touch-action: none;
+}
+
+.onboard.is-dragging .onboard-canvas {
+  cursor: grabbing;
+}
+
 /* Soft vignette, like a camera lens. */
 .onboard::after {
   content: '';

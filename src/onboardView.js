@@ -15,7 +15,7 @@ const SUN = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToR
 export const CAMERAS = [
   { id: 'tcam', label: 'T-cam', pos: [0, 1.38, 1.0], pitch: -0.17, fov: 60 },
   { id: 'cockpit', label: 'Cockpit', pos: [0, 0.9, 0.18], pitch: -0.035, fov: 64 },
-  { id: 'chase', label: 'Chase', pos: [0, 2.5, 8.2], pitch: -0.13, fov: 54 },
+  { id: 'chase', label: 'Chase', pos: [0, 2.5, 8.2], pitch: -0.13, fov: 54, orbit: true },
 ];
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -1291,6 +1291,12 @@ export class OnboardView {
     this.showLine = true;
     this.lines = [];
 
+    // Chase cam orbit: drag to swing around the car, scroll to zoom,
+    // double-click to snap back behind it.
+    this.orbitHome = { azimuth: 0, polar: 1.355, radius: 8.4 };
+    this.orbit = { ...this.orbitHome };
+    this.setupOrbit();
+
     this.buildHud();
     new ResizeObserver(() => this.resize()).observe(container);
   }
@@ -1362,6 +1368,55 @@ export class OnboardView {
     };
     this.hud.camButtons.forEach((b) => b.addEventListener('click', () => this.setCamera(Number(b.dataset.cam))));
     this.hud.lineButton.addEventListener('click', () => this.setRacingLine(!this.showLine));
+  }
+
+  setupOrbit() {
+    const el = this.renderer.domElement;
+    let drag = null;
+    const isOrbit = () => CAMERAS[this.cameraIndex].orbit;
+    el.addEventListener('pointerdown', (e) => {
+      if (!isOrbit()) return;
+      drag = { x: e.clientX, y: e.clientY };
+      el.setPointerCapture(e.pointerId);
+      this.container.classList.add('is-dragging');
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      this.orbit.azimuth -= (e.clientX - drag.x) * 0.008;
+      this.orbit.polar = clamp(this.orbit.polar - (e.clientY - drag.y) * 0.006, 0.3, 1.5);
+      drag = { x: e.clientX, y: e.clientY };
+      this.onChange?.();
+    });
+    const end = () => {
+      drag = null;
+      this.container.classList.remove('is-dragging');
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    el.addEventListener('wheel', (e) => {
+      if (!isOrbit()) return;
+      e.preventDefault();
+      this.orbit.radius = clamp(this.orbit.radius * (1 + e.deltaY * 0.001), 4, 24);
+      this.onChange?.();
+    }, { passive: false });
+    el.addEventListener('dblclick', () => {
+      if (!isOrbit()) return;
+      this.orbit = { ...this.orbitHome };
+      this.onChange?.();
+    });
+  }
+
+  // Place the chase camera on a sphere around the car and aim it at the car.
+  updateOrbitCamera(car) {
+    const { azimuth, polar, radius } = this.orbit;
+    const target = new THREE.Vector3(0, 0.7, 0);
+    this.camera.position.set(
+      target.x + radius * Math.sin(polar) * Math.sin(azimuth),
+      target.y + radius * Math.cos(polar),
+      target.z + radius * Math.sin(polar) * Math.cos(azimuth)
+    );
+    car.group.updateMatrixWorld(true);
+    this.camera.lookAt(car.body.localToWorld(target));
   }
 
   setData({ drivers, sectorTimes }) {
@@ -1441,6 +1496,7 @@ export class OnboardView {
       own.tcamPod.visible = cam.id !== 'tcam'; // the camera is mounted on it
     }
     this.hud.camButtons.forEach((b, j) => b.setAttribute('aria-pressed', String(j === this.cameraIndex)));
+    this.container.classList.toggle('is-orbit', Boolean(cam.orbit));
     this.onChange?.();
   }
 
@@ -1546,8 +1602,10 @@ export class OnboardView {
     this.speedFov += ((ownState.speed / 340) * 5 - this.speedFov) * ease(400);
     this.applyFov();
 
-    // A little vibration at speed, like a real onboard camera.
-    if (!reduceMotion) {
+    if (CAMERAS[this.cameraIndex].orbit) {
+      this.updateOrbitCamera(ownCar);
+    } else if (!reduceMotion) {
+      // A little vibration at speed, like a real onboard camera.
       const base = CAMERAS[this.cameraIndex].pos;
       const amount = (ownState.speed / 340) * (CAMERAS[this.cameraIndex].id === 'chase' ? 0.4 : 1);
       this.camera.position.y = base[1] + (Math.sin(t / 29) * 0.004 + Math.sin(t / 13.7) * 0.0025) * amount;

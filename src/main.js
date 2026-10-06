@@ -68,7 +68,7 @@ const deltaChart = new LineChart($('#delta-chart'), {
 // ---------- Navigation ----------
 
 els.select.innerHTML = TRACKS.map(
-  (t) => `<option value="${t.id}">${t.name} ${t.year}</option>`
+  (t) => `<option value="${t.id}">${t.name}</option>`
 ).join('');
 
 function currentTrack() {
@@ -109,43 +109,63 @@ async function load(track) {
   setPlaying(false);
   els.select.value = track.id;
   els.name.textContent = track.name;
-  els.sub.textContent = `The three fastest laps from ${track.session.toLowerCase()} at the ${track.year} ${track.event}, raced against each other.`;
-  document.title = `${track.name} ${track.year} | F1 Ghost Lap Viewer`;
+  els.sub.textContent = `The three fastest ${track.session.toLowerCase()} laps at the ${track.event} since ${track.years[0]}, raced against each other.`;
+  document.title = `${track.name} | F1 Ghost Lap Viewer`;
 
-  const totalSteps = 3 + 3 * 2;
-  let step = 0;
-  const progress = (what) => showStatus(`${what} (${++step} of ${totalSteps})`);
+  const progress = (what) => showStatus(`${what}…`);
 
   try {
-    progress('Finding the session');
-    const session = await getSession(track);
-    if (stale()) return;
-    if (!session) {
-      throw new Error(`OpenF1 has no ${track.session.toLowerCase()} session for ${track.name} in ${track.year}. Check circuitShortName and year in tracks.js.`);
+    // Gather every session's laps, then keep each driver's single best lap.
+    const candidates = [];
+    const driversBySession = new Map();
+    for (const year of track.years) {
+      progress(`Finding ${year} ${track.session.toLowerCase()}`);
+      const session = await getSession({ ...track, year });
+      if (stale()) return;
+      if (!session) continue; // that season hasn't happened yet, or has no data
+      session.year ??= year;
+      progress(`Loading ${year} lap times`);
+      const laps = await getLaps(session.session_key);
+      const drivers = await getDrivers(session.session_key);
+      if (stale()) return;
+      driversBySession.set(session.session_key, drivers);
+      for (const lap of pickFastestLaps(laps, 30)) {
+        const driver = drivers.find((d) => d.driver_number === lap.driver_number);
+        candidates.push({ lap, session, driver });
+      }
+    }
+    if (!candidates.length) {
+      throw new Error(`OpenF1 has no ${track.session.toLowerCase()} data for ${track.name}. Check circuitShortName and years in tracks.js.`);
     }
 
-    progress('Loading lap times');
-    const laps = await getLaps(session.session_key);
-    progress('Loading drivers');
-    const drivers = await getDrivers(session.session_key);
-    if (stale()) return;
-
-    const fastest = pickFastestLaps(laps, 3);
-    if (fastest.length < 3) throw new Error('This session has fewer than three timed laps.');
+    // Race numbers change between seasons, so match drivers by name.
+    candidates.sort((a, b) => a.lap.lap_duration - b.lap.lap_duration);
+    const chosen = [];
+    const seen = new Set();
+    for (const c of candidates) {
+      const who = c.driver?.full_name ?? `#${c.lap.driver_number}`;
+      if (seen.has(who)) continue;
+      seen.add(who);
+      chosen.push(c);
+      if (chosen.length === 3) break;
+    }
+    if (chosen.length < 3) throw new Error('Fewer than three drivers have timed laps here.');
 
     const built = [];
-    for (const [index, lap] of fastest.entries()) {
-      const driver = drivers.find((d) => d.driver_number === lap.driver_number);
+    for (const [index, { lap, session, driver }] of chosen.entries()) {
       const who = driver?.name_acronym ?? `#${lap.driver_number}`;
       const start = parseDate(lap.date_start);
       const end = start + lap.lap_duration * 1000;
       // A little padding either side so the path covers the whole lap.
-      progress(`Loading ${who}'s position data`);
+      progress(`Loading ${who}'s ${session.year} position data`);
       const locations = await getLocation(session.session_key, lap.driver_number, start - 2000, end + 2000);
-      progress(`Loading ${who}'s car telemetry`);
+      progress(`Loading ${who}'s ${session.year} car telemetry`);
       const carData = await getCarData(session.session_key, lap.driver_number, start - 2000, end + 2000);
       if (stale()) return;
-      built.push(buildDriverLap({ lap, driver, locations, carData, index }));
+      const d = buildDriverLap({ lap, driver, locations, carData, index });
+      d.year = session.year;
+      d.team = d.team ? `${d.team}, ${session.year}` : String(session.year);
+      built.push(d);
     }
 
     markSharedColours(built);

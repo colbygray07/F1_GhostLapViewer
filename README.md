@@ -6,7 +6,7 @@ F1 Ghost Lap Viewer pulls lap times, car positions and telemetry from the OpenF1
 
 ## What it does
 
-- Finds the qualifying session for a track and picks the three fastest laps, one per driver.
+- Searches every qualifying session OpenF1 has for a track (2023 onwards) and picks the three fastest drivers, one lap each.
 - Draws the circuit from the fastest car's actual position data, with sector markers and the start/finish line.
 - Replays all three laps at once with play, pause, scrubbing and speeds from ¼× to 4×.
 - Shows a live timing tower with position, gap, speed, gear, throttle and brake for each car.
@@ -47,6 +47,9 @@ Add an entry to `src/tracks.js`. `circuitShortName` must match OpenF1's `circuit
 - `src/main.js` loads the data, builds the views and runs the playback loop.
 
 ## Current limits
+
+- OpenF1 telemetry starts in 2023, so older laps (like Hamilton's 2020 Monza pole) can't be replayed.
+- Track edges are estimated from the drivers' lines, since OpenF1 doesn't provide circuit geometry.
 
 - OpenF1 position and telemetry data is sampled at about 3.7 Hz, so positions between samples are interpolated.
 - Lap start times and position timestamps don't always line up perfectly, so a car can appear slightly off the line at the very start.
