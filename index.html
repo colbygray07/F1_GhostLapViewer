@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Watch the three fastest F1 qualifying laps race each other around the track, using real telemetry." />
+    <title>Ghost Lap: the fastest F1 laps, replayed side by side</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Big+Shoulders+Display:wght@700;800;900&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#replay">Ghost Lap</a>
+      <nav class="site-nav" aria-label="Page sections">
+        <a href="#replay">Replay</a>
+        <a href="#telemetry">Telemetry</a>
+        <a href="#breakdown">Lap breakdown</a>
+      </nav>
+      <label class="track-picker">
+        <span class="visually-hidden">Choose a track</span>
+        <select id="track-select"></select>
+      </label>
+    </header>
+
+    <main>
+      <section id="replay" class="replay" aria-labelledby="track-name">
+        <div class="replay-head">
+          <h1 id="track-name">&nbsp;</h1>
+          <p id="track-sub" class="track-sub"></p>
+        </div>
+
+        <div class="replay-grid">
+          <div class="stage">
+            <div class="stage-canvas">
+              <canvas id="track-canvas" role="img" aria-label="Track map showing the three fastest laps"></canvas>
+              <div id="stage-status" class="stage-status" role="status"></div>
+            </div>
+
+            <div class="controls" aria-label="Playback">
+              <button id="play-btn" class="btn btn-play" type="button" aria-label="Play">
+                <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z" /></svg>
+                <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 4.5h4v15h-4zM13.5 4.5h4v15h-4z" /></svg>
+              </button>
+              <button id="restart-btn" class="btn btn-icon" type="button" aria-label="Back to the start">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h2.5v16H5zM20 4.5v15L9 12z" /></svg>
+              </button>
+              <div class="scrub">
+                <input id="scrubber" type="range" min="0" max="1000" step="1" value="0" aria-label="Lap time" />
+                <div id="scrub-marks" class="scrub-marks" aria-hidden="true"></div>
+              </div>
+              <output id="clock" class="clock">0.000</output>
+              <div class="speed-toggle" role="group" aria-label="Playback speed">
+                <button type="button" data-speed="0.25">¼×</button>
+                <button type="button" data-speed="0.5">½×</button>
+                <button type="button" data-speed="1" aria-pressed="true">1×</button>
+                <button type="button" data-speed="2">2×</button>
+                <button type="button" data-speed="4">4×</button>
+              </div>
+            </div>
+          </div>
+
+          <aside class="tower" aria-label="Live timing">
+            <h2 class="tower-title">Live timing</h2>
+            <ol id="tower-list" class="tower-list"></ol>
+            <p class="hint">Space to play or pause. Arrow keys skip a second.</p>
+          </aside>
+        </div>
+      </section>
+
+      <section id="telemetry" class="section" aria-labelledby="telemetry-title">
+        <div class="section-head">
+          <h2 id="telemetry-title">Telemetry</h2>
+          <p>Every lap is lined up by distance, so each point is the same spot on track. Hover to compare, click to jump the replay there.</p>
+        </div>
+
+        <figure class="chart-block">
+          <figcaption>
+            <span class="chart-title">Speed</span>
+            <span id="speed-readout" class="readout"></span>
+          </figcaption>
+          <canvas id="speed-chart" class="chart chart-tall"></canvas>
+        </figure>
+
+        <figure class="chart-block">
+          <figcaption>
+            <span class="chart-title">Time behind the fastest lap</span>
+            <span id="delta-readout" class="readout"></span>
+          </figcaption>
+          <canvas id="delta-chart" class="chart"></canvas>
+        </figure>
+      </section>
+
+      <section id="breakdown" class="section" aria-labelledby="breakdown-title">
+        <div class="section-head">
+          <h2 id="breakdown-title">Lap breakdown</h2>
+          <p>Purple marks the best time or figure in each column, the same way the official timing screens do.</p>
+        </div>
+        <div class="table-wrap"><table id="sector-table" class="data-table"></table></div>
+        <div class="table-wrap"><table id="stats-table" class="data-table"></table></div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>Lap data from the <a href="https://openf1.org" target="_blank" rel="noopener">OpenF1 API</a>. Ghost Lap is a fan project and isn't affiliated with Formula 1.</p>
+    </footer>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
