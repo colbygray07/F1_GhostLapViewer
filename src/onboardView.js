@@ -5,9 +5,8 @@
 import * as THREE from 'three';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { formatLapTime, formatGap, formatSector } from './format.js';
+import { HALF, STEP, prepareCentreline, deriveTrackCentre } from './trackShape.js';
 
-const HALF = 6.5; // half the road width, in metres
-const STEP = 3; // metres between track samples
 const KERB_CURVATURE = 1 / 110; // corners tighter than a 110 m radius get kerbs
 const GRAVEL_CURVATURE = 1 / 75; // ...and tighter than 75 m get a gravel trap outside
 const SUN = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(54), THREE.MathUtils.degToRad(150));
@@ -203,86 +202,7 @@ class TrackGrid {
   }
 }
 
-// Closed loop of {x, z} points: smooth it, resample every STEP metres, and
-// work out direction, sideways normal and curvature at each sample.
-function prepareCentreline(points) {
-  // The lap path is already smoothed in lapData, so only a light touch here;
-  // more would pull the road away from where the cars actually drive.
-  const n0 = points.length;
-  const pts = points.map((_, i) => {
-    let x = 0, z = 0;
-    for (let k = -2; k <= 2; k++) {
-      const p = points[(i + k + n0) % n0];
-      x += p.x;
-      z += p.z;
-    }
-    return { x: x / 5, z: z / 5 };
-  });
-
-  const loop = [...pts, pts[0]];
-  const cum = [0];
-  for (let i = 1; i < loop.length; i++) {
-    cum.push(cum[i - 1] + Math.hypot(loop[i].x - loop[i - 1].x, loop[i].z - loop[i - 1].z));
-  }
-  const length = cum[cum.length - 1];
-  const out = [];
-  let j = 0;
-  for (let d = 0; d < length; d += STEP) {
-    while (cum[j + 1] < d) j++;
-    const k = (d - cum[j]) / (cum[j + 1] - cum[j] || 1);
-    out.push({ x: loop[j].x + (loop[j + 1].x - loop[j].x) * k, z: loop[j].z + (loop[j + 1].z - loop[j].z) * k, d });
-  }
-
-  const n = out.length;
-  out.forEach((p, i) => {
-    const a = out[(i - 1 + n) % n];
-    const b = out[(i + 1) % n];
-    const len = Math.hypot(b.x - a.x, b.z - a.z) || 1;
-    p.tx = (b.x - a.x) / len;
-    p.tz = (b.z - a.z) / len;
-    p.nx = -p.tz; // sideways normal, pointing to the driver's right
-    p.nz = p.tx;
-  });
-  out.forEach((p, i) => {
-    const a = out[(i - 3 + n) % n];
-    const b = out[(i + 3) % n];
-    p.turn = Math.atan2(a.tx * b.tz - a.tz * b.tx, a.tx * b.tx + a.tz * b.tz) / (6 * STEP); // >0 is a right-hander
-    p.curv = Math.abs(p.turn);
-  });
-  return { samples: out, length };
-}
-
 const at = (p, off, y) => [p.x + p.nx * off, y, p.z + p.nz * off];
-
-// OpenF1 gives us where the car drove, not where the track edges are. F1 cars
-// take corners outside-apex-outside: wide on entry, tight at the apex, wide on
-// exit. So we work backwards: where the line bends more sharply than its
-// surroundings (an apex), the car is on the inside; just before and after,
-// it's on the outside. Shifting the road the other way recovers the track.
-function deriveTrackCentre(lineSamples) {
-  const n = lineSamples.length;
-  const blur = (values, sigma) => {
-    const radius = Math.ceil(sigma * 3);
-    const w = Array.from({ length: radius * 2 + 1 }, (_, k) => Math.exp(-((k - radius) ** 2) / (2 * sigma * sigma)));
-    return values.map((_, i) => {
-      let sum = 0, ws = 0;
-      for (let k = -radius; k <= radius; k++) {
-        sum += values[(i + k + n) % n] * w[k + radius];
-        ws += w[k + radius];
-      }
-      return sum / ws;
-    });
-  };
-  const turn = lineSamples.map((p) => p.turn); // signed curvature, >0 = right-hander
-  const local = blur(turn, 5); // ~15 m: the corner itself
-  const wide = blur(turn, 55); // ~165 m: the corner and its approach and exit
-  const room = HALF - 1.3; // how far from the centre a car's middle can be
-  return lineSamples.map((p, i) => {
-    // Positive = the car is towards the inside of the corner.
-    const inside = room * Math.tanh((local[i] - wide[i]) / 0.0022);
-    return { x: p.x - p.nx * inside, z: p.z - p.nz * inside };
-  });
-}
 
 // ---------- Textures ----------
 
@@ -1471,11 +1391,9 @@ export class OnboardView {
     const cy = ref.outline.reduce((a, p) => a + p.y, 0) / ref.outline.length;
     this.toWorld = (p) => ({ x: (p.x - cx) * s, z: -(p.y - cy) * s });
 
-    // The official outline is the real track. Without it, estimate the track
-    // from the drivers' outside-apex-outside line.
-    const { samples } = circuit?.outline
-      ? prepareCentreline(circuit.outline.map(this.toWorld))
-      : prepareCentreline(deriveTrackCentre(prepareCentreline(ref.outline.map(this.toWorld)).samples));
+    // Cars drive their exact recorded lines; the track edges are placed around
+    // the fastest line the way F1 drivers use the track.
+    const { samples } = prepareCentreline(deriveTrackCentre(prepareCentreline(ref.outline.map(this.toWorld)).samples));
     this.world = new THREE.Group();
     this.world.add(buildCircuit(samples));
     this.cars = drivers.map((d) => {

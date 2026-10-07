@@ -2,7 +2,17 @@
 // The track itself is drawn once into an offscreen canvas; each frame only
 // redraws the cars on top of it.
 
+import { prepareCentreline, deriveTrackCentre } from './trackShape.js';
+
 const TRAIL_MS = 1400;
+
+// The actual track (not the racing line) in OpenF1 units, using the same
+// track-edge model as the 3D view, so chicanes show as proper kinks.
+function trackOutline(driver) {
+  const m = driver.metresPerUnit || 0.1;
+  const line = prepareCentreline(driver.outline.map((p) => ({ x: p.x * m, z: p.y * m }))).samples;
+  return deriveTrackCentre(line).map((p) => ({ x: p.x / m, y: p.z / m }));
+}
 
 function readableText(hex) {
   const v = parseInt(hex.replace('#', ''), 16);
@@ -25,8 +35,9 @@ export class TrackView {
 
   setData({ drivers, rotation, sectorTimes, circuit }) {
     this.drivers = drivers;
-    // Official outline and orientation when we have them, else the fastest car's path.
-    this.outline = circuit?.outline ?? drivers[0].outline;
+    // The track itself, placed around the fastest car's real line. The
+    // official data supplies the orientation and corner numbers.
+    this.outline = trackOutline(drivers[0]);
     this.fixedRotation = circuit ? circuit.rotation : rotation;
     this.corners = circuit?.corners ?? [];
     this.metresPerUnit = drivers[0].metresPerUnit;
@@ -88,7 +99,7 @@ export class TrackView {
       const y = p.x * sin + p.y * cos;
       return { x: (x - cx) * scale + this.w / 2, y: -(y - cy) * scale + this.h / 2 };
     };
-    this.trackWidth = Math.max(9, Math.min(this.w, this.h) * 0.024);
+    this.trackWidth = Math.max(6, Math.min(this.w, this.h) * 0.015);
     this.drawBase();
     this.draw(this.t);
   }

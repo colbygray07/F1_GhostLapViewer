@@ -101,7 +101,7 @@ export function buildDriverLap({ lap, driver, locations, carData, index }) {
 
   // The raw positions are a bit noisy, which makes cars wobble. A Gaussian
   // blur over ~150 ms irons that out without cutting corners.
-  const SIGMA = 3;
+  const SIGMA = 2;
   const RADIUS = SIGMA * 3;
   const weights = Array.from({ length: RADIUS * 2 + 1 }, (_, k) => Math.exp(-((k - RADIUS) ** 2) / (2 * SIGMA * SIGMA)));
   const xs = new Float64Array(n);
@@ -155,8 +155,8 @@ export function buildDriverLap({ lap, driver, locations, carData, index }) {
     rx[i] = xs[jj] + (xs[jj + 1] - xs[jj]) * k;
     ry[i] = ys[jj] + (ys[jj + 1] - ys[jj]) * k;
   }
-  const px = gaussian(rx, 4);
-  const py = gaussian(ry, 4);
+  const px = gaussian(rx, 2.5);
+  const py = gaussian(ry, 2.5);
   const pathCum = new Float64Array(m);
   for (let i = 1; i < m; i++) pathCum[i] = pathCum[i - 1] + Math.hypot(px[i] - px[i - 1], py[i] - py[i - 1]);
   const pathLen = pathCum[m - 1] || 1;
