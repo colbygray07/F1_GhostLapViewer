@@ -13,7 +13,7 @@ const GRAVEL_CURVATURE = 1 / 75; // ...and tighter than 75 m get a gravel trap o
 const SUN = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(54), THREE.MathUtils.degToRad(150));
 
 export const CAMERAS = [
-  { id: 'tcam', label: 'T-cam', pos: [0, 1.38, 1.0], pitch: -0.17, fov: 60 },
+  { id: 'tcam', label: 'T-cam', pos: [0, 1.2, 0.56], pitch: -0.2, fov: 68 },
   { id: 'cockpit', label: 'Cockpit', pos: [0, 0.9, 0.18], pitch: -0.035, fov: 64 },
   { id: 'chase', label: 'Chase', pos: [0, 2.5, 8.2], pitch: -0.13, fov: 54, orbit: true },
 ];
@@ -959,7 +959,7 @@ function buildCar(driver, teammateIndex = 0) {
   };
 
   // Chassis: a long drooping nose flowing into the cockpit and engine cover.
-  add(body, loft([
+  const chassis = [
     { z: -3.04, w: 0.12, h: 0.08, y: 0.2 },
     { z: -2.85, w: 0.2, h: 0.13, y: 0.22 },
     { z: -2.5, w: 0.27, h: 0.18, y: 0.26 },
@@ -973,7 +973,20 @@ function buildCar(driver, teammateIndex = 0) {
     { z: 1.6, w: 0.42, h: 0.46, y: 0.49 },
     { z: 2.0, w: 0.26, h: 0.3, y: 0.42 },
     { z: 2.3, w: 0.14, h: 0.16, y: 0.38 },
-  ]), liveryMat);
+  ];
+  add(body, loft(chassis), liveryMat);
+  // Height of the top of the chassis at a point along the car.
+  const topAt = (z) => {
+    const i = Math.max(0, chassis.findIndex((c) => c.z >= z) - 1);
+    const a = chassis[i];
+    const b = chassis[Math.min(i + 1, chassis.length - 1)];
+    const k = clamp((z - a.z) / (b.z - a.z || 1), 0, 1);
+    return a.y + a.h / 2 + (b.y + b.h / 2 - a.y - a.h / 2) * k;
+  };
+
+  // Cockpit opening: a dark recess with padded headrest wings either side of the helmet.
+  add(body, loft([-0.62, -0.4, -0.1, 0.2, 0.36].map((z, i) => ({ z, w: [0.34, 0.46, 0.5, 0.48, 0.4][i], h: 0.024, y: topAt(z) + 0.004 })), 20, 3), carbon);
+  for (const sd of [1, -1]) add(body, box(0.11, 0.07, 0.42), carbon, sd * 0.2, topAt(0.15) + 0.03, 0.15);
 
   // Sidepods: wide at the inlets, tapering hard towards the back ("coke bottle").
   add(body, loft([
@@ -1030,12 +1043,16 @@ function buildCar(driver, teammateIndex = 0) {
   add(body, box(0.9, 0.02, 0.14), carbon, 0, 0.5, 2.36, -0.4);
   add(body, box(0.1, 0.05, 0.02), rearLight, 0, 0.3, 2.63);
 
-  // Mirrors on stalks.
+  // Mirrors: wide, flat blades on stalks, glass facing the driver.
+  const mirrorGlass = new THREE.MeshStandardMaterial({ color: '#56626e', metalness: 1, roughness: 0.12 });
+  mats.push(mirrorGlass);
   for (const sd of [1, -1]) {
-    body.add(rod([sd * 0.3, 0.62, -0.75], [sd * 0.48, 0.67, -0.8], 0.012, carbon));
-    add(body, new THREE.SphereGeometry(1, 20, 12), paint, sd * 0.51, 0.68, -0.8).scale.set(0.095, 0.036, 0.045);
-    add(body, new THREE.PlaneGeometry(0.15, 0.05), metal, sd * 0.51, 0.68, -0.757);
+    body.add(rod([sd * 0.34, 0.6, -0.62], [sd * 0.55, 0.7, -0.66], 0.014, carbon));
+    body.add(rod([sd * 0.36, 0.6, -0.48], [sd * 0.55, 0.7, -0.62], 0.012, carbon));
+    add(body, box(0.25, 0.065, 0.055), paint, sd * 0.62, 0.72, -0.66, 0, 0, -sd * 0.08);
+    add(body, new THREE.PlaneGeometry(0.23, 0.05), mirrorGlass, sd * 0.62, 0.72, -0.632, 0, 0, -sd * 0.08);
   }
+  body.add(rod([0, 0.42, -2.05], [0, 0.6, -2.12], 0.004, carbon)); // nose antenna
 
   // Halo with a painted top fairing.
   const halo = new THREE.CatmullRomCurve3([
@@ -1045,7 +1062,7 @@ function buildCar(driver, teammateIndex = 0) {
     new THREE.Vector3(0.4, 1.1, 0.0),
     new THREE.Vector3(0.42, 0.68, 0.55),
   ]);
-  add(body, new THREE.TubeGeometry(halo, 48, 0.034, 10), carbon);
+  add(body, new THREE.TubeGeometry(halo, 64, 0.046, 12), carbon);
   const pillar = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0.52, -0.95), new THREE.Vector3(0, 0.92, -0.62), new THREE.Vector3(0, 1.2, -0.36)]);
   add(body, new THREE.TubeGeometry(pillar, 16, 0.03, 10), paint);
 
@@ -1055,12 +1072,14 @@ function buildCar(driver, teammateIndex = 0) {
   shell.scale.set(1, 1, 1.08);
   add(helmet, new THREE.SphereGeometry(0.152, 32, 8, Math.PI * 1.5 - 0.95, 1.9, 1.22, 0.4), visor).scale.set(1, 1, 1.08);
   add(helmet, new THREE.SphereGeometry(0.1525, 32, 4, Math.PI * 1.5 - 0.95, 1.9, 1.08, 0.14), stripMat).scale.set(1, 1, 1.08);
-  helmet.position.set(0, 0.86, 0.2);
+  helmet.position.set(0, 0.86, 0.14);
   body.add(helmet);
 
   // Steering wheel with shift lights.
   const steering = new THREE.Group();
-  add(steering, box(0.3, 0.13, 0.04), carbon);
+  add(steering, box(0.27, 0.12, 0.035), carbon);
+  add(steering, new THREE.PlaneGeometry(0.09, 0.05), new THREE.MeshBasicMaterial({ color: '#1d3b52' }), 0, 0, -0.019, 0, Math.PI);
+  for (const sd of [1, -1]) add(steering, new THREE.CylinderGeometry(0.022, 0.022, 0.13, 10), carbon, sd * 0.14, -0.01, 0);
   const leds = [];
   for (let i = 0; i < 10; i++) {
     const led = new THREE.Mesh(box(0.018, 0.014, 0.01), new THREE.MeshBasicMaterial({ color: '#222' }));
@@ -1069,8 +1088,8 @@ function buildCar(driver, teammateIndex = 0) {
     leds.push(led);
   }
   const wheelPivot = new THREE.Group();
-  wheelPivot.position.set(0, 0.66, -0.33);
-  wheelPivot.rotation.x = -0.5;
+  wheelPivot.position.set(0, topAt(-0.42) + 0.06, -0.42);
+  wheelPivot.rotation.x = -0.95;
   wheelPivot.add(steering);
   body.add(wheelPivot);
 
@@ -1097,6 +1116,20 @@ function buildCar(driver, teammateIndex = 0) {
   decal(t2, 0.34, 0.085, 0, 1.237, -0.18, 0, -Math.PI / 2 + 0.25);
   for (const sd of [1, -1]) decal(t1, 0.42, 0.105, sd * 0.11, 0.52, -1.3, Math.PI / 2, -Math.PI / 2);
   decal(numberTexture(driver.driverNumber, colours.contrast, colours.base), 0.2, 0.15, 0, 0.402, -2.2, Math.PI, -Math.PI / 2); // nose
+  decal(t1, 0.46, 0.115, 0, topAt(-0.95) + 0.006, -0.95, 0, -Math.PI / 2); // chassis, ahead of the cockpit
+  for (const sd of [1, -1]) decal(sd > 0 ? t2 : t1, 0.2, 0.05, sd * 0.62, 0.754, -0.66, 0, -Math.PI / 2); // mirror tops
+
+  // Sponsor names running along the top of the halo, like the real cars.
+  const t3 = sponsorTexture(SPONSORS[(seed + 7) % SPONSORS.length], '#ffffff', (seed >>> 6) % 4);
+  [[0.24, t3], [0.38, t1], [0.62, t2], [0.76, t3]].forEach(([u, tex]) => {
+    const p = halo.getPointAt(u);
+    const t = halo.getTangentAt(u).normalize();
+    const n = new THREE.Vector3(0, 1, 0.35).addScaledVector(t, -t.y).normalize();
+    const side = new THREE.Vector3().crossVectors(n, t).normalize();
+    const m = decal(tex, 0.26, 0.065, 0, 0, 0, 0);
+    m.position.copy(p).addScaledVector(n, 0.047);
+    m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(t, side, n));
+  });
 
   // Wheels: rounded tyres with soft-compound red bands and wheel covers.
   const wheels = [];
@@ -1322,9 +1355,12 @@ export class OnboardView {
       <div class="hud-onboard">
         <div class="hud-driver">
           <span class="hud-driver-bar"></span>
+          <span class="hud-driver-text">
+            <span class="hud-driver-first"></span>
+            <span class="hud-driver-last"></span>
+            <span class="hud-driver-team"></span>
+          </span>
           <span class="hud-driver-num"></span>
-          <span class="hud-driver-name"></span>
-          <span class="hud-driver-team"></span>
         </div>
         <div class="hud-dash">
           <div class="hud-speed"><b>0</b><span>km/h</span></div>
@@ -1354,7 +1390,8 @@ export class OnboardView {
       sectors: [...hud.querySelectorAll('[data-s]')],
       bar: q('.hud-driver-bar'),
       num: q('.hud-driver-num'),
-      name: q('.hud-driver-name'),
+      first: q('.hud-driver-first'),
+      last: q('.hud-driver-last'),
       team: q('.hud-driver-team'),
       speed: q('.hud-speed b'),
       gear: q('.hud-gear b'),
@@ -1419,7 +1456,7 @@ export class OnboardView {
     this.camera.lookAt(car.body.localToWorld(target));
   }
 
-  setData({ drivers, sectorTimes }) {
+  setData({ drivers, sectorTimes, circuit }) {
     if (this.world) {
       this.scene.remove(this.world);
       disposeTree(this.world);
@@ -1434,8 +1471,11 @@ export class OnboardView {
     const cy = ref.outline.reduce((a, p) => a + p.y, 0) / ref.outline.length;
     this.toWorld = (p) => ({ x: (p.x - cx) * s, z: -(p.y - cy) * s });
 
-    const line = prepareCentreline(ref.outline.map(this.toWorld)).samples;
-    const { samples } = prepareCentreline(deriveTrackCentre(line));
+    // The official outline is the real track. Without it, estimate the track
+    // from the drivers' outside-apex-outside line.
+    const { samples } = circuit?.outline
+      ? prepareCentreline(circuit.outline.map(this.toWorld))
+      : prepareCentreline(deriveTrackCentre(prepareCentreline(ref.outline.map(this.toWorld)).samples));
     this.world = new THREE.Group();
     this.world.add(buildCircuit(samples));
     this.cars = drivers.map((d) => {
@@ -1478,8 +1518,12 @@ export class OnboardView {
     this.hud.driverGroup.querySelectorAll('button').forEach((b, j) => b.setAttribute('aria-pressed', String(j === this.viewIndex)));
     const d = this.drivers[this.viewIndex];
     this.hud.bar.style.background = d.colour;
+    const [first, ...rest] = d.name.split(' ');
     this.hud.num.textContent = d.driverNumber;
-    this.hud.name.textContent = d.name;
+    this.hud.first.textContent = rest.length ? first : '';
+    this.hud.last.textContent = rest.length ? rest.join(' ') : first;
+    this.hud.last.style.color = luminance(d.colour) < 60 ? mixColour(d.colour, '#ffffff', 0.45) : d.colour;
+    this.hud.num.style.color = this.hud.last.style.color;
     this.hud.team.textContent = d.team;
     this.setCamera(this.cameraIndex);
   }

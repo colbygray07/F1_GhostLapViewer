@@ -6,6 +6,7 @@ import { TrackView } from './trackView.js';
 import { LineChart, valueAt } from './chart.js';
 import { formatLapTime, formatGap, formatSector } from './format.js';
 import { RaceAudio } from './engineAudio.js';
+import { getCircuitInfo, prepareCircuit } from './circuit.js';
 
 const $ = (sel) => document.querySelector(sel);
 const els = {
@@ -169,7 +170,11 @@ async function load(track) {
     }
 
     markSharedColours(built);
-    setup(track, built);
+    progress('Loading the official circuit layout');
+    const { session: refSession } = chosen[0];
+    const circuit = prepareCircuit(await getCircuitInfo(refSession.circuit_key, refSession.year), built[0]);
+    if (stale()) return;
+    setup(track, built, circuit);
     els.status.hidden = true;
     if (!reduceMotion) setPlaying(true);
   } catch (err) {
@@ -185,7 +190,8 @@ async function load(track) {
 
 // ---------- Building the views ----------
 
-function setup(track, drivers) {
+function setup(track, drivers, circuit = null) {
+  state.circuit = circuit;
   state.drivers = drivers;
   state.maxDuration = Math.max(...drivers.map((d) => d.duration));
   state.t = 0;
@@ -196,9 +202,9 @@ function setup(track, drivers) {
   const sectorTimes = s1 && s2 ? [s1, s1 + s2] : [];
   const sectorMarks = sectorTimes.map((t) => ref.progressAt(t));
 
-  trackView.setData({ drivers, rotation: track.rotation, sectorTimes });
+  trackView.setData({ drivers, rotation: track.rotation, sectorTimes, circuit });
   state.sectorTimes = sectorTimes;
-  onboard?.setData({ drivers, sectorTimes });
+  onboard?.setData({ drivers, sectorTimes, circuit });
 
   els.scrubber.max = Math.round(state.maxDuration);
   els.scrubMarks.innerHTML = sectorTimes
@@ -328,7 +334,7 @@ async function setView(view) {
     const { OnboardView } = await import('./onboardView.js');
     onboard = new OnboardView(els.onboard);
     onboard.onChange = () => (state.dirty = true);
-    if (state.drivers.length) onboard.setData({ drivers: state.drivers, sectorTimes: state.sectorTimes });
+    if (state.drivers.length) onboard.setData({ drivers: state.drivers, sectorTimes: state.sectorTimes, circuit: state.circuit });
   }
   els.onboard.hidden = view !== 'onboard';
   els.canvas.hidden = view === 'onboard';

@@ -23,10 +23,13 @@ export class TrackView {
     new ResizeObserver(() => this.resize()).observe(canvas);
   }
 
-  setData({ drivers, rotation, sectorTimes }) {
+  setData({ drivers, rotation, sectorTimes, circuit }) {
     this.drivers = drivers;
-    this.outline = drivers[0].outline;
-    this.fixedRotation = rotation;
+    // Official outline and orientation when we have them, else the fastest car's path.
+    this.outline = circuit?.outline ?? drivers[0].outline;
+    this.fixedRotation = circuit ? circuit.rotation : rotation;
+    this.corners = circuit?.corners ?? [];
+    this.metresPerUnit = drivers[0].metresPerUnit;
     const ref = drivers[0];
     this.sectorPoints = sectorTimes.map((t) => ({ a: ref.posAt(t), b: ref.posAt(t + 150) }));
     this.resize();
@@ -66,7 +69,7 @@ export class TrackView {
     }
     this.dpr = dpr;
 
-    const pad = Math.max(36, Math.min(this.w, this.h) * 0.08);
+    const pad = Math.max(44, Math.min(this.w, this.h) * 0.09);
     const angle = this.bestRotation(this.w - pad * 2, this.h - pad * 2);
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
@@ -129,6 +132,31 @@ export class TrackView {
 
     // Chequered start/finish line.
     this.drawChequer(ctx, pts[0], pts[Math.min(4, pts.length - 1)]);
+
+    // Corner numbers, offset from the track in the direction the data suggests.
+    const offset = 45 / (this.metresPerUnit || 0.1);
+    ctx.font = '700 11px Barlow, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const c of this.corners) {
+      const a = (c.angle * Math.PI) / 180;
+      const on = this.toScreen({ x: c.x, y: c.y });
+      const at = this.toScreen({ x: c.x + offset * Math.cos(a), y: c.y + offset * Math.sin(a) });
+      ctx.strokeStyle = 'rgba(140, 149, 162, 0.6)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(on.x, on.y);
+      ctx.lineTo(at.x, at.y);
+      ctx.stroke();
+      ctx.fillStyle = '#2C333D';
+      ctx.beginPath();
+      ctx.arc(at.x, at.y, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ECEEF1';
+      ctx.fillText(c.label, at.x, at.y + 0.5);
+    }
+    ctx.textAlign = 'start';
+    ctx.textBaseline = 'alphabetic';
   }
 
   drawTick(ctx, a, b, colour, width) {
