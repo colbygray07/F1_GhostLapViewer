@@ -14,4 +14,15 @@ export const TRACKS = [
     session: 'Qualifying',
     rotation: null,
   },
+  {
+    id: 'montreal',
+    name: 'Circuit Gilles-Villeneuve',
+    fullName: 'Circuit Gilles-Villeneuve',
+    event: 'Canadian Grand Prix',
+    years: [2023, 2024, 2025, 2026],
+    circuitShortName: 'Montreal',
+    countryName: 'Canada', // fallback if the short name doesn't match
+    session: 'Qualifying',
+    rotation: null,
+  },
 ];

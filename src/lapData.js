@@ -199,8 +199,26 @@ export function buildDriverLap({ lap, driver, locations, carData, index }) {
     return { x: px[lo] + (px[hi] - px[lo]) * k, y: py[lo] + (py[hi] - py[lo]) * k };
   }
 
+  // Where along its own path this car crosses the start/finish line. The
+  // position timestamps can be a fraction of a second out, which would put
+  // cars a few lengths apart at the line, so every car is lined up on the
+  // same line (see alignStartTo) and drives exactly one lap from it.
+  let startOffset = 0;
+
   function posAt(t) {
-    return pointAtDistance(progressAt(t) * pathLen);
+    const s = (((startOffset + progressAt(t) * pathLen) % pathLen) + pathLen) % pathLen;
+    return pointAtDistance(s);
+  }
+
+  function alignStartTo(line) {
+    let best = Infinity;
+    for (let i = 0; i < m; i++) {
+      const d = (px[i] - line.x) ** 2 + (py[i] - line.y) ** 2;
+      if (d < best) {
+        best = d;
+        startOffset = pathCum[i];
+      }
+    }
   }
 
   function timeAtProgress(p) {
@@ -279,6 +297,7 @@ export function buildDriverLap({ lap, driver, locations, carData, index }) {
     },
     outline: Array.from({ length: Math.ceil(m / 2) }, (_, i) => ({ x: px[i * 2], y: py[i * 2] })),
     posAt,
+    alignStartTo,
     progressAt,
     timeAtProgress,
     carAt,

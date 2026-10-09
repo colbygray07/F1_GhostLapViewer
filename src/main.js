@@ -169,6 +169,9 @@ async function load(track) {
       built.push(d);
     }
 
+    // Line every car up on the fastest car's start/finish line.
+    const startLine = built[0].posAt(0);
+    built.slice(1).forEach((d) => d.alignStartTo(startLine));
     markSharedColours(built);
     progress('Loading the official circuit layout');
     const { session: refSession } = chosen[0];

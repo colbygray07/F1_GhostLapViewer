@@ -77,11 +77,20 @@ async function request(endpoint, params) {
 const toApiDate = (ms) => new Date(ms).toISOString().replace('Z', '');
 
 export async function getSession(track) {
-  const rows = await request('sessions', {
+  let rows = await request('sessions', {
     year: track.year,
     circuit_short_name: track.circuitShortName,
     session_name: track.session,
   });
+  // If the short name doesn't match OpenF1's, try the country instead
+  // (fine for countries that host a single Grand Prix).
+  if (!rows.length && track.countryName) {
+    rows = await request('sessions', {
+      year: track.year,
+      country_name: track.countryName,
+      session_name: track.session,
+    });
+  }
   return rows[0] ?? null;
 }
 

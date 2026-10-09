@@ -510,26 +510,49 @@ function buildCircuit(samples) {
   const heading = Math.atan2(-start.tz, start.tx); // rotates local +x onto the track direction
   const concrete = new THREE.MeshStandardMaterial({ color: '#c9ccd0', roughness: 0.85 });
 
-  const pitWall = new THREE.Mesh(new THREE.BoxGeometry(110 * STEP, 1.1, 0.5), concrete);
-  pitWall.position.set(...at(start, pitSide * (HALF + 5), 0.55));
-  pitWall.rotation.y = heading;
-  pitWall.castShadow = pitWall.receiveShadow = true;
-  group.add(pitWall);
+  // Buildings are straight boxes but tracks curve, so check the whole
+  // footprint, not just the centre, against every part of the track.
+  const dirX = start.tx;
+  const dirZ = start.tz;
+  const footprintClear = (cx, cz, length, depth, margin) => {
+    const nx = -dirZ;
+    const nz = dirX;
+    for (let a = -length / 2; a <= length / 2 + 0.01; a += 5) {
+      for (let k = 0; k <= 4; k++) {
+        const b = -depth / 2 + (depth * k) / 4;
+        if (!grid.clear(cx + dirX * a + nx * b, cz + dirZ * a + nz * b, HALF + margin)) return false;
+      }
+    }
+    return true;
+  };
+  // Longest version of a building that fits, or null if none do.
+  const fit = (cx, cz, lengths, depth, margin) => lengths.find((len) => footprintClear(cx, cz, len, depth, margin)) ?? null;
+
+  const wallPos = at(start, pitSide * (HALF + 5), 0.55);
+  const wallLength = fit(wallPos[0], wallPos[2], [330, 240, 160, 100, 60], 0.5, 2.5);
+  if (wallLength) {
+    const pitWall = new THREE.Mesh(new THREE.BoxGeometry(wallLength, 1.1, 0.5), concrete);
+    pitWall.position.set(...wallPos);
+    pitWall.rotation.y = heading;
+    pitWall.castShadow = pitWall.receiveShadow = true;
+    group.add(pitWall);
+  }
 
   const pitPos = at(start, pitSide * (HALF + 30), 0);
-  if (grid.clear(pitPos[0], pitPos[2], 30)) {
+  const pitLength = fit(pitPos[0], pitPos[2], [300, 220, 150, 90], 26, 4);
+  if (pitLength) {
     const facade = new THREE.MeshStandardMaterial({ map: tex.pits, roughness: 0.5, metalness: 0.2 });
-    const pits = new THREE.Mesh(new THREE.BoxGeometry(300, 12, 18), [concrete, concrete, concrete, concrete, pitSide > 0 ? concrete : facade, pitSide > 0 ? facade : concrete]);
+    const pits = new THREE.Mesh(new THREE.BoxGeometry(pitLength, 12, 18), [concrete, concrete, concrete, concrete, pitSide > 0 ? concrete : facade, pitSide > 0 ? facade : concrete]);
     pits.position.set(pitPos[0], 6, pitPos[2]);
     pits.rotation.y = heading;
     pits.castShadow = pits.receiveShadow = true;
     group.add(pits);
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(304, 0.6, 24), new THREE.MeshStandardMaterial({ color: '#eceef1', roughness: 0.6 }));
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(pitLength + 4, 0.6, 24), new THREE.MeshStandardMaterial({ color: '#eceef1', roughness: 0.6 }));
     roof.position.set(pitPos[0], 12.3, pitPos[2]);
     roof.rotation.y = heading;
     roof.castShadow = true;
     group.add(roof);
-    obstacles.push({ x: pitPos[0], z: pitPos[2], r: 160 });
+    obstacles.push({ x: pitPos[0], z: pitPos[2], r: pitLength / 2 + 15 });
   }
 
   const line = new THREE.Mesh(new THREE.PlaneGeometry(HALF * 2, 1.4), new THREE.MeshStandardMaterial({ map: tex.chequer, roughness: 0.7 }));
@@ -567,7 +590,17 @@ function buildCircuit(samples) {
     for (const side of [-pitSide, pitSide]) {
       const off = side * (HALF + (gravelSide[i] === side ? 34 : 24));
       const [x, , z] = at(p, off, 0);
-      if (!grid.clear(x, z, Math.abs(off) - 6) || obstacles.some((o) => Math.hypot(o.x - x, o.z - z) < o.r)) continue;
+      if (obstacles.some((o) => Math.hypot(o.x - x, o.z - z) < o.r)) continue;
+      // Check the whole stand (74 m long, 24 m deep with its roof), not just its centre.
+      let clear = true;
+      for (let along = -37; along <= 37 && clear; along += 5) {
+        for (const across of [-12, -6, 0, 6, 12]) {
+          const px = x + p.tx * along + p.nx * across;
+          const pz = z + p.tz * along + p.nz * across;
+          if (!grid.clear(px, pz, HALF + 4)) { clear = false; break; }
+        }
+      }
+      if (!clear) continue;
       lastStand = p.d;
       const stand = new THREE.Group();
       const rise = 10;
